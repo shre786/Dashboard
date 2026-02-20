@@ -1,0 +1,241 @@
+{
+  "info": {
+    "name": "Dashboard API",
+    "description": "Complete API collection for Dashboard Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"StrongP@ss123\",\n  \"password_confirm\": \"StrongP@ss123\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"user_name\": \"john_doe\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john@example.com\",\n  \"password\": \"StrongP@ss123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "forgot-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Company Management",
+      "item": [
+        {
+          "name": "Create Company",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"CompanyName\": \"ABC Pvt Ltd\",\n  \"domain\": \"abc.com\",\n  \"website\": \"https://abc.com\",\n  \"poc\": \"John Doe\",\n  \"email\": \"john@abc.com\",\n  \"phone\": \"+919876543210\",\n  \"status\": \"Under Progress\",\n  \"meetingAvailability\": \"Next Week\",\n  \"meetingDate\": \"2026-02-25T10:30:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/companies",
+              "host": ["{{base_url}}"],
+              "path": ["companies"]
+            }
+          }
+        },
+        {
+          "name": "List Companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/companies/?page=1&page_size=10",
+              "host": ["{{base_url}}"],
+              "path": ["companies", ""],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Company",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quotes\": \"Updated quotation text\",\n  \"status\": \"Interested\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Company Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Skip\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Upcoming Meetings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/companies/upcoming-meetings?limit=3",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "upcoming-meetings"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "3"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Next Week Updates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/companies/updates",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "updates"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "company_id",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}

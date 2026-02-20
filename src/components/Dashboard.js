@@ -1,8 +1,10 @@
 import React, {useEffect, useState} from "react";
 import "./Dashboard.css";
-import * as XLSX from "xlsx";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
+import { faMagnifyingGlass, faPenToSquare } from "@fortawesome/free-solid-svg-icons";
+
+const API_URL="http://127.0.0.1:8000/api/";
 
 const STAT_CARD_COLORS = {
   division: "#ffffff",        
@@ -19,8 +21,22 @@ export default function Dashboard() {
     const[selectedCompany, setSelectedCompany] = useState(null);
     const [showSearch, setShowSearch] = useState(false);
     const [searchText, setSearchText] = useState("");
+    const [editMode, setEditMode] = useState(false);
+    const [editableData, setEditableData] = useState(null);
+    const [editingField, setEditingField] = useState(null);
+    const [fieldValue, setFieldValue] = useState("");
+    const [activeTab, setActiveTab] = useState("Updates");
+    const [statusFilter, setStatusFilter] = useState("All");
+    const [newCompany, setNewCompany] = useState({
+  CompanyName: "",
+  domain: "",
+  poc: "",
+  email: "",
+  phone: "",
+  status: "Under Progress"
+});
 
-    const getFavicon = (website, domain) => {
+const getFavicon = (website, domain) => {
   if (website) {
     try {
       return `https://www.google.com/s2/favicons?sz=64&domain=${new URL(website).hostname}`;
@@ -37,6 +53,20 @@ export default function Dashboard() {
 };
 
 
+const extractEmail = (text = "") => {
+  const match = text.match(
+    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+  );
+  return match ? match[0].trim() : "";
+};
+
+const extractPhone = (text = "") => {
+  const match = text.match(
+    /(\+?\d{1,3}[\s-]?)?(\d[\s-]?){10}/
+  );
+  return match ? match[0].replace(/\s+/g, "").trim() : "";
+};
+
 const extractName = (text = "") => {
   return text
     .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "")
@@ -45,145 +75,93 @@ const extractName = (text = "") => {
     .replace(/mobile\s*no\.?|phone|email|contact|LEAD|Consultancy/gi, "")
     .replace(/\(.*?\)/g, "")
     .replace(/[|,<>:/]/g, "")
-
+    .replace(/\s+/g, " ")
     .trim();
 };
 
-  const extractEmail = (text = "") => {
-  const match = text.match(
-    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
-  );
-  return match ? match[0] : "";
-};
+
+// const parseExcelDate = (value) => {
+//   if (!value) return null;
+
+//   if (typeof value !== "string") return null;
 
 
-const extractPhone = (text = "") => {
-  const match = text.match(
-    /(\+?\d{1,3}[\s-]?)?(\d[\s-]?){10}/
-  );
-  return match ? match[0].replace(/\s+/g, " ").trim() : "";
-};
+//   const cleanValue = value.replace("-", "-").trim();
 
-const parseExcelDate = (value) => {
-  if (!value) return null;
+//   const slashMatch = cleanValue.match(
+//     /(\d{1,2})\/(\d{1,2})\/(\d{4}).*?(\d{1,2})(?::(\d{2}))?\s?(am|pm)/i
+//   );
 
-  if (typeof value !== "string") return null;
+//   if (slashMatch) {
+//     let day = parseInt(slashMatch[1]);
+//     let month = parseInt(slashMatch[2]) - 1;
+//     let year = parseInt(slashMatch[3]);
+//     let hour = parseInt(slashMatch[4]);
+//     let minute = parseInt(slashMatch[5] || "0");
+//     let ampm = slashMatch[6].toLowerCase();
 
-  // Remove special dashes and normalize text
-  const cleanValue = value.replace("–", "-").trim();
+//     if (ampm === "pm" && hour < 12) hour += 12;
+//     if (ampm === "am" && hour === 12) hour = 0;
 
-  // ---- FORMAT 1: 16/02/2026 at 4pm ----
-  const slashMatch = cleanValue.match(
-    /(\d{1,2})\/(\d{1,2})\/(\d{4}).*?(\d{1,2})(?::(\d{2}))?\s?(am|pm)/i
-  );
+//     return new Date(year, month, day, hour, minute);
+//   }
 
-  if (slashMatch) {
-    let day = parseInt(slashMatch[1]);
-    let month = parseInt(slashMatch[2]) - 1;
-    let year = parseInt(slashMatch[3]);
-    let hour = parseInt(slashMatch[4]);
-    let minute = parseInt(slashMatch[5] || "0");
-    let ampm = slashMatch[6].toLowerCase();
 
-    if (ampm === "pm" && hour < 12) hour += 12;
-    if (ampm === "am" && hour === 12) hour = 0;
+//   const textMatch = cleanValue.match(
+//     /(\d{1,2})\s([A-Za-z]+)\s(\d{4})\s(\d{1,2})(?::(\d{2}))?\s?(am|pm)/i
+//   );
 
-    return new Date(year, month, day, hour, minute);
+//   if (textMatch) {
+//     let day = parseInt(textMatch[1]);
+//     let monthName = textMatch[2];
+//     let year = parseInt(textMatch[3]);
+//     let hour = parseInt(textMatch[4]);
+//     let minute = parseInt(textMatch[5] || "0");
+//     let ampm = textMatch[6].toLowerCase();
+
+//     const monthIndex = new Date(`${monthName} 1, 2000`).getMonth();
+
+//     if (ampm === "pm" && hour < 12) hour += 12;
+//     if (ampm === "am" && hour === 12) hour = 0;
+
+//     return new Date(year, monthIndex, day, hour, minute);
+//   }
+
+//   return null;
+// };
+
+// const nameFromEmail = (email = "") => {
+//   if (!email) return "";
+
+//   return email
+//     .split("@")[0]          
+//     .replace(/[._-]+/g, " ") 
+//     .replace(/\b\w/g, c => c.toUpperCase()) 
+//     .trim();
+// };
+
+useEffect(() => {
+  fetch(API_URL)
+    .then(res => res.json())
+    .then(result => {
+  if (result.status === "success") {
+    const cleaned = result.data.companies.map(c => ({
+      ...c,
+      meetingDate: c.meetingDate
+        ? new Date(c.meetingDate)
+        : null
+    }));
+
+    setLeads(cleaned);
   }
+})
 
-  // ---- FORMAT 2: Fri 13 Feb 2026 4pm - 4:30pm ----
-  const textMatch = cleanValue.match(
-    /(\d{1,2})\s([A-Za-z]+)\s(\d{4})\s(\d{1,2})(?::(\d{2}))?\s?(am|pm)/i
-  );
-
-  if (textMatch) {
-    let day = parseInt(textMatch[1]);
-    let monthName = textMatch[2];
-    let year = parseInt(textMatch[3]);
-    let hour = parseInt(textMatch[4]);
-    let minute = parseInt(textMatch[5] || "0");
-    let ampm = textMatch[6].toLowerCase();
-
-    const monthIndex = new Date(`${monthName} 1, 2000`).getMonth();
-
-    if (ampm === "pm" && hour < 12) hour += 12;
-    if (ampm === "am" && hour === 12) hour = 0;
-
-    return new Date(year, monthIndex, day, hour, minute);
-  }
-
-  return null;
-};
-
-
-
-
-
-const nameFromEmail = (email = "") => {
-  if (!email) return "";
-
-  return email
-    .split("@")[0]          
-    .replace(/[._-]+/g, " ") 
-    .replace(/\b\w/g, c => c.toUpperCase()) 
-    .trim();
-};
-
-  useEffect(() => {
-  fetch("./media/Dashboard.xlsx")
-    .then(res => res.arrayBuffer())
-    .then(buffer => {
-      const workbook = XLSX.read(buffer, {
-        type: "array",
-        cellDates: false
-});
-
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawData = XLSX.utils.sheet_to_json(sheet);
-
-      const normalizedData = rawData.map(row => {
-
-  let website = row["Company Website"];
-
-  if (website && !website.startsWith("http")) {
-    website = "https://" + website;
-  }
-
-  const poc = row["Point of Contact"] || "";
-  const email = extractEmail(poc) || row["Email"];
-  return {
-    Init: row["Initiated"],
-    CompanyName: row["Company Name"],
-    website: website,
-    status: row["Status"] || row["status"],
-    poc: extractName(poc) || nameFromEmail(email),
-    email: extractEmail(poc) || row["Email"],
-    phone: extractPhone(poc) || row["Phone"],
-    domain: row["Company Domain"],
-    followUps: row["Follow-Ups( Mail, Call )"],
-    replied: row["Reply"],
-    response: row["Response"],
-    offerings: row["Offerings"],
-    proposed: row["Proposed"],
-    quotes: row["Quotation"],
-    meetingSummary: row["Meeting Disscussion Summary"],
-    meetingAvailability: row["Availability for Metting"],
-    meet_1: row["Meeting 1"],
-    meet_2: row["Meeting 2"],
-    meetingDate: parseExcelDate(row["Meeting Dates"]),
-
-  };
-});
-
-
-      setLeads(normalizedData);
-    })
-    .catch(err => console.error("Excel fetch error:", err));
+    .catch(err => console.error("Error loading companies:", err));
 }, []);
 
 
 // Helpers
-   const totalLeads = leads.filter(
+const totalLeads = leads.filter(
   l => l.CompanyName || l.Company_Name
 ).length;
 
@@ -203,7 +181,12 @@ const filteredCompanies = leads.filter(lead =>
   lead.CompanyName?.toLowerCase().includes(searchText.toLowerCase())
 );
 
-const visibleCompanies = filteredCompanies;
+const visibleCompanies = filteredCompanies.filter(lead => {
+  if (statusFilter === "All") return lead.status !== "Skip";
+  return lead.status === statusFilter;
+});
+
+
 const isToday = (date) => {
   if (!date) return false;
 
@@ -224,9 +207,6 @@ const isToday = (date) => {
   return meetingDate.getTime() === currentDate.getTime();
 };
 
-
-
-
 const [updates, setUpdates] = useState([]);
 
 useEffect(() => {
@@ -236,19 +216,19 @@ useEffect(() => {
 
   const today = new Date();
 
-  // Get start of current week (Monday)
-  const currentDay = today.getDay(); // 0=Sun, 1=Mon
+  
+  const currentDay = today.getDay(); 
   const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
 
   const startOfThisWeek = new Date(today);
   startOfThisWeek.setDate(today.getDate() + diffToMonday);
   startOfThisWeek.setHours(0, 0, 0, 0);
 
-  // Start of next week
+  
   const startOfNextWeek = new Date(startOfThisWeek);
   startOfNextWeek.setDate(startOfThisWeek.getDate() + 7);
 
-  // End of next week
+ 
   const endOfNextWeek = new Date(startOfNextWeek);
   endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
   endOfNextWeek.setHours(23, 59, 59, 999);
@@ -332,7 +312,6 @@ const markAsRead = (id) => {
   });
 };
 
-
 const today = new Date();
 today.setHours(0, 0, 0, 0);
 
@@ -352,6 +331,84 @@ const upcomingMeetings = leads
   })
   .sort((a, b) => a.date - b.date);
 
+const updateCompany = async (company) => {
+  try {
+    const response = await fetch(`${API_URL}${company.id}/`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(company)
+    });
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+   
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      
+      // Convert meetingDate strings to Date objects
+      const cleaned = data.data.companies.map(c => ({
+        ...c,
+        meetingDate: c.meetingDate ? new Date(c.meetingDate) : null
+      }));
+      
+      setLeads(cleaned);
+    }
+
+  } catch (error) {
+    console.error("Update failed:", error);
+  }
+};
+
+const addCompany = async (newCompany) => {
+  try {
+    const response = await fetch(`${API_URL}addcompany`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(newCompany)
+    });
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      
+      // Convert meetingDate strings to Date objects
+      const cleaned = data.data.companies.map(c => ({
+        ...c,
+        meetingDate: c.meetingDate ? new Date(c.meetingDate) : null
+      }));
+      
+      setLeads(cleaned);
+      setShowForm(false);
+    }
+
+  } catch (error) {
+    console.error("Add failed:", error);
+  }
+};
+
+const deleteCompany = async (id) => {
+  try {
+    const response = await fetch(`${API_URL}${id}/`, {
+      method: "DELETE"
+    });
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+      setLeads(prev => prev.filter(c => c.id !== id));
+    }
+
+  } catch (error) {
+    console.error("Delete failed:", error);
+  }
+};
 
 
   return (
@@ -372,18 +429,12 @@ const upcomingMeetings = leads
         onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
         onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
       >
-      <img 
-              src="/B2B.ico"
-              className="me-2"   
-              alt="icon"
-              width="30"
-              height="30"
-            />
-        B2B LEADS
+      <img src="/B2B.ico" className="me-2" alt="icon"
+              width="30" height="30"/>Bussiness Management Software
       </h2>
 
       <small className="text-light d-block mt-2">
-        B2B Planning
+        Bussiness Management Planning
       </small>
 
     </div>
@@ -391,6 +442,7 @@ const upcomingMeetings = leads
 </div>
 
 {/* ------------End header----------------- */}
+
 <hr style={{color:"#ffffff"}}/>
 <div className="row ms-2 mt-3 px-3 align-items-start">
   <div className="col-md-3 d-flex flex-column gap-3 mt-4">
@@ -414,77 +466,150 @@ const upcomingMeetings = leads
 {/* Updates */}
   <div className="ms-5 col-md-5">
     <ul className="nav nav-tabs border-0 ms-2">
-      <li className="nav-item">
-        <span
-  className="nav-link active fw-bold px-4 py-2 position-relative"
-  style={{
-    backgroundColor: "#0d6efd",
-    color: "#fff",
-    borderRadius: "8px 8px 0 0",
-    border: "none",
-    fontSize: "18px",
-    cursor: "pointer"
-  }}>
-  Updates
-
-  {/* Notification Count */}
-  {unreadUpdates > 0 && (
+  {/* Updates Tab */}
+  <li className="nav-item">
     <span
-      className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-      style={{ fontSize: "10px" }}
+      onClick={() => setActiveTab("Updates")}
+      className="nav-link fw-bold px-4 py-2 position-relative"
+      style={{
+        backgroundColor:
+          activeTab === "Updates" ? "#0d6efd" : "#000000",
+        color: "#fff",
+        borderRadius: "8px 8px 0 0",
+        border: "none",
+        fontSize: "16px",
+        cursor: "pointer",
+        transition: "0.2s ease"
+      }}
     >
-      {unreadUpdates}
+      Updates
+
+      {unreadUpdates > 0 && activeTab === "Updates" && (
+        <span
+          className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+          style={{ fontSize: "10px" }}
+        >
+          {unreadUpdates}
+        </span>
+      )}
     </span>
-  )}
-</span>
-      </li>
-    </ul>
+  </li>
+
+  {/* Responses Tab */}
+  <li className="nav-item">
+    <span
+      onClick={() => setActiveTab("Responses")}
+      className="nav-link fw-bold px-4 py-2 ms-1"
+      style={{
+        backgroundColor:
+          activeTab === "Responses" ? "#0d6efd" : "#000000",
+        color: "#fff",
+        borderRadius: "8px 8px 0 0",
+        border: "none",
+        fontSize: "16px",
+        cursor: "pointer",
+        transition: "0.2s ease"
+      }}
+    >
+      Responses
+    </span>
+  </li>
+</ul>
+
     <div
       className="card bg-dark border-0 shadow-sm"
       style={{ maxHeight: "170px", overflowY: "auto" }}
     >
       <div className="card-body p-2">
-        {updates.map((update) => (
-  <div
-    key={update.id}
-    onClick={() => markAsRead(update.id)}
-    className="d-flex align-items-start gap-2 mb-2 p-2 rounded text-start"
-    style={{
-      background: update.read ? "#2d2d2d" : "#3a3a3a",
-      borderLeft: update.read
-        ? "4px solid #6c757d"
-        : "4px solid #0d6efd",
-      cursor: "pointer",
-      transition: "0.2s ease"
-    }}
-  >
-    <div className="flex-grow-1">
 
-      {/* Description */}
-      <div
-        className="small"
-        style={{
-          color: update.read ? "#bdbdbd" : "#ffffff",
-          fontWeight: update.read ? "normal" : "bold"
-        }}
-      >
-        {update.description}
+  {/* Updates Tab  */}
+  {activeTab === "Updates" &&
+    (updates.length === 0 ? (
+      <div className="small text-muted">
+        No upcoming updates
       </div>
+    ) : (
+      updates.map((update) => (
+        <div
+          key={update.id}
+          onClick={() => markAsRead(update.id)}
+          className="d-flex align-items-start gap-2 mb-2 p-2 rounded text-start"
+          style={{
+            background: update.read ? "#2d2d2d" : "#3a3a3a",
+            borderLeft: update.read
+              ? "4px solid #6c757d"
+              : "4px solid #0d6efd",
+            cursor: "pointer",
+            transition: "0.2s ease"
+          }}
+        >
+          <div className="flex-grow-1">
+            <div
+              className="small"
+              style={{
+                color: update.read ? "#bdbdbd" : "#ffffff",
+                fontWeight: update.read ? "normal" : "bold"
+              }}
+            >
+              {update.description}
+            </div>
 
-      {/* Time */}
-      <div
-  className="text-start fw-semibold"
-  style={{
-    fontSize: "11px",
-    color: getDateColor(update.time)
-  }}
->
-  {formatDate(update.time)}
-</div>
+            <div
+              className="text-start fw-semibold"
+              style={{
+                fontSize: "11px",
+                color: getDateColor(update.time)
+              }}
+            >
+              {formatDate(update.time)}
+            </div>
+          </div>
+        </div>
+      ))
+    ))}
+
+  {/*  Response Tab */}
+  {activeTab === "Responses" &&
+  (leads.filter(
+    l =>
+      l.response &&
+      l.response.trim() !== "" &&
+      l.response.trim().toLowerCase() !== "na"
+  ).length === 0 ? (
+    <div className="small text-muted">
+      No responses available
     </div>
-  </div>
-))}
-      </div>
+  ) : (
+    leads
+      .filter(
+        l =>
+          l.response &&
+          l.response.trim() !== "" &&
+          l.response.trim().toLowerCase() !== "na"
+      )
+      .map((lead, index) => (
+        <div
+          key={index}
+          className="mb-2 p-2 rounded text-start"
+          style={{
+            background: "#3a3a3a",
+            borderLeft: "4px solid #198754"
+          }}
+        >
+          <div className="fw-bold small text-light mb-1">
+            {lead.CompanyName}
+          </div>
+
+          <div className="small text-light">
+            {lead.response}
+          </div>
+        </div>
+      ))
+  ))}
+
+
+</div>
+
     </div>
   </div>
 </div>
@@ -553,12 +678,70 @@ const upcomingMeetings = leads
 
 {/* Upcoming meeting end */}
 <div className="row mt-2 mb-3 align-items-center">
-  <div className="col-4 text-start text-light bg-se">
+  <div className="col-3 text-start text-light bg-se">
     <h3 className="mb-0  fs-3 ms-1">{selectedStat}</h3>
   </div>
 
-  
-  <div className="col-8 text-end">
+  <div className="col-5">
+    <div className="row mt-2 mb-3">
+  <div className="col-12 d-flex justify-content-start">
+    <div className="dropdown">
+      <button
+        className="btn btn-outline-light dropdown-toggle"
+        type="button"
+        data-bs-toggle="dropdown"
+      >
+        {statusFilter}
+      </button>
+
+      <ul className="dropdown-menu dropdown-menu-start">
+        <li>
+          <button
+            className="dropdown-item"
+            onClick={() => setStatusFilter("All")}
+          >
+            All
+          </button>
+        </li>
+        <li>
+          <button
+            className="dropdown-item"
+            onClick={() => setStatusFilter("Quotation")}
+          >
+            Quotation Send
+          </button>
+        </li>
+        <li>
+          <button
+            className="dropdown-item"
+            onClick={() => setStatusFilter("Interested")}
+          >
+            Interested
+          </button>
+        </li>
+        <li>
+          <button
+            className="dropdown-item"
+            onClick={() => setStatusFilter("Awaiting for Meeting")}
+          >
+            Awaiting for Meeting
+          </button>
+        </li>
+        <li>
+          <button
+            className="dropdown-item"
+            onClick={() => setStatusFilter("Skip")}
+          >
+            Skip
+          </button>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</div>
+  <div className="col-4 text-end">
     <span
   className="badge bg-primary px-3 py-2 me-3"
   style={{ cursor: "pointer", fontSize: "16px" }}
@@ -574,7 +757,7 @@ const upcomingMeetings = leads
   });
 }}
 >
-  + Add Leads
+  + Add Company
 </span>
   </div>
 </div>
@@ -583,51 +766,45 @@ const upcomingMeetings = leads
         <div className="row mt-2">
   <div className="col-3 text-light" >
   <ul className="list-group">
-    <li className="list-group-item active fw-bold text-center" style={{backgroundColor:"#60A5FA"}} >
-  <div className="d-flex justify-content-center align-items-center gap-2 m-1">
-    Company Names
-    {/* Search Icon */}
+   <li
+  className="list-group-item active fw-bold position-relative"
+  style={{ backgroundColor: "#60A5FA" }}
+>
+  <div className="d-flex align-items-center justify-content-center position-relative">
+
+    {/* Center Area */}
+    {!showSearch ? (
+      <span className="text-center w-100">Company Names</span>
+    ) : (
+      <input
+        type="text"
+        className="form-control form-control-sm text-center"
+        placeholder="Search company..."
+        style={{ width: "60%" }}
+        autoFocus
+        value={searchText}
+        onChange={(e) => setSearchText(e.target.value)}
+      />
+    )}
+
+    {/* Search Icon - Always Right */}
     <FontAwesomeIcon
       icon={faMagnifyingGlass}
-      className="text-light"
-      size="sm"
-      style={{ cursor: "pointer" }}
+      className="text-light position-absolute"
+      style={{
+        right: "10px",
+        cursor: "pointer"
+      }}
       onClick={() => setShowSearch(prev => !prev)}
     />
 
   </div>
-
-  {/* Search Box */}
-  {showSearch && (
-  <div className="mt-2 px-2">
-    <nav className="navbar bg-transparent p-0">
-      <form className="w-100" role="search">
-        <div className="input-group input-group-sm">
-          <input
-            className="form-control"
-            type="search"
-            placeholder="Search company..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-
-          {/* <span className="input-group-text bg-dark border-0">
-            <FontAwesomeIcon
-              icon={faMagnifyingGlass}
-              className="text-light"
-              style={{cursor:"pointer"}}
-            />
-          </span> */}
-        </div>
-      </form>
-    </nav>
-  </div>
-)}
-
 </li>
+
 
     {/* Company List */}
 <div className="company-list-scroll" >
+{/* Normal Companies */}
 {visibleCompanies.length === 0 ? (
   <li className="list-group-item text-center text-muted">
     No Results Found
@@ -639,7 +816,6 @@ const upcomingMeetings = leads
       className={`list-group-item company-item text-center ${
         selectedCompany?.CompanyName === lead.CompanyName ? "active" : ""
       }`}
-      
       onClick={() => {
         setSelectedCompany(lead);
         setShowForm(false);
@@ -658,15 +834,11 @@ const upcomingMeetings = leads
   ))
 )}
 </div>
-  </ul>
+</ul>
+  
 </div>
-            <div className="col-9 text-light">
-                {/* {!selectedCompany && (
-    <div className="text-center mt-5 text-muted">
-      Select a company to view details
-    </div>
-  )} */}
 
+<div className="col-9 text-light">
 {/* End list  */}
 
   {selectedCompany && (
@@ -690,71 +862,485 @@ const upcomingMeetings = leads
     <span>{selectedCompany.CompanyName}</span>
   </a>
 </h4>
+ <div
+   className="position-absolute d-flex gap-2"
+   style={{
+     top: "10px",
+     right: "10px"
+   }}
+ >
+ 
+   {/* Skip  */}
+   {selectedCompany.status !== "Skip" && (
+     <button
+       className="btn btn-sm btn-danger"
+       onClick={async () => {
+  try {
+    await fetch(`${API_URL}${selectedCompany.id}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ status: "Skip" })
+    });
+
+    // fetchCompanies();   
+  } catch (err) {
+    console.error(err);
+  }
+}}>
+       Skip
+     </button>
+   )}
+ 
+   {/* Unskip */}
+   {selectedCompany.status === "Skip" && (
+     <button
+       className="btn btn-sm btn-success"
+       onClick={async () => {
+  try {
+    await fetch(`${API_URL}${selectedCompany.id}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ status: "Under Progress" })
+    });
+
+    // fetchCompanies();
+    setSelectedCompany(null);
+  } catch (err) {
+    console.error(err);
+  }
+}}
+
+     >
+       Unskip
+     </button>
+   )}
+ 
+   {/* Edit Button  */}
+   <button
+     className="btn btn-sm text-light"
+     style={{
+       background: "transparent",
+       border: "none"
+     }}
+     onClick={() => {
+   if (editMode) {
+     setEditMode(false);
+   } else {
+     setEditMode(true);
+     setEditableData(selectedCompany);
+   }
+ }}
+   >
+     <FontAwesomeIcon
+       className="company-edit"
+       icon={faPenToSquare}
+     />
+   </button>
+ 
+ </div>
    <hr/>
-        <div className="row">
-            <div className="col-md-5 pe-5">
-        <p className="text-start mb-4"><strong>Company Domain :</strong> {selectedCompany.domain}</p>
-        <p className="text-start mb-0"><strong>Point Of Contact :</strong> {selectedCompany.poc}</p>
-        <p className="text-start mb-0">Email : {selectedCompany.email}</p>
-        <p className="text-start mb-0">Phone : {selectedCompany.phone}</p>     
-        </div>
-        <div className="col-md-6">
-        <p className="text-start"><strong>Meeting Discussion Summary :</strong> {selectedCompany.meetingSummary}</p>
-        <p className="text-start mt-4"><strong>Availability of Meetings :</strong> {selectedCompany.meetingAvailability}</p>
-        <p className="text-start mt-4"><strong>Status :</strong> {selectedCompany.status}</p>
-        </div>
-        </div>
+  <div className="row">
+
+  <div className="col-md-5 pe-2">
+
+    <p className="text-start mb-3">
+      <strong>Company Domain : </strong>
+      {editMode ? (
+        <input
+          className="form-control form-control-sm mt-1"
+          value={editableData?.domain || ""}
+          onChange={(e) =>
+            setEditableData({ ...editableData, domain: e.target.value })
+          }
+        />
+      ) : (
+        selectedCompany.domain
+      )}
+    </p>
+
+    <p className="text-start mb-0">
+      <strong>Point Of Contact : </strong>
+      {editMode ? (
+        <input
+          className="form-control form-control-sm mt-1"
+          value={editableData?.poc || ""}
+          onChange={(e) =>
+            setEditableData({ ...editableData, poc: e.target.value })
+          }
+        />
+      ) : (
+        selectedCompany.poc
+      )}
+    </p>
+
+    <p className="text-start mb-0">
+     Email : {" "}
+      {editMode ? (
+        <input
+          className="form-control form-control-sm mt-1"
+          value={editableData?.email || ""}
+          onChange={(e) =>
+            setEditableData({ ...editableData, email: e.target.value })
+          }
+        />
+      ) : (
+        selectedCompany.email
+      )}
+    </p>
+
+    <p className="text-start mb-0">
+      Phone : {" "}
+      {editMode ? (
+        <input
+          className="form-control form-control-sm mt-1"
+          value={editableData?.phone || ""}
+          onChange={(e) =>
+            setEditableData({ ...editableData, phone: e.target.value })
+          }
+        />
+      ) : (
+        selectedCompany.phone
+      )}
+    </p>
+
+  </div>
+
+  <div className="col-md-6">
+
+    <p className="text-start">
+      <strong>Availability of Meetings : </strong>
+      {editMode ? (
+        <input
+          className="form-control form-control-sm mt-1"
+          value={editableData?.meetingAvailability || ""}
+          onChange={(e) =>
+            setEditableData({
+              ...editableData,
+              meetingAvailability: e.target.value
+            })
+          }
+        />
+      ) : (
+        selectedCompany.meetingAvailability
+      )}
+    </p>
+
+    <p className="text-start mt-3">
+      <strong>Status : </strong>
+      {editMode ? (
+        <select
+          className="form-select form-select-sm mt-1"
+          value={editableData?.status || ""}
+          onChange={(e) =>
+            setEditableData({
+              ...editableData,
+              status: e.target.value
+            })
+          }
+        >
+          <option>Interested</option>
+          <option>Awaiting for Meeting</option>
+          <option>Quotation</option>
+          <option>Skip</option>
+        </select>
+      ) : (
+        selectedCompany.status
+      )}
+    </p>
+
+  </div>
+
+</div>
+
+{/* Save button */}
+{editMode && (
+  <div className="text-end mt-3">
+    <button
+      className="btn btn-primary"
+      onClick={() => {
+  updateCompany(editableData);
+  setSelectedCompany(editableData);
+  setEditMode(false);
+}}
+
+    >
+      Save Changes
+    </button>
+  </div>
+)}
       </div>
     </div>
   
     <div className="d-flex">
-    <div className="card bg-primary text-light shadow-sm mt-3 offer" style={{width: "25rem"}}>
+    <div className="card bg-primary text-light shadow-sm mt-3 offer position-relative" style={{width: "25rem"}}>
       <div className="card-body">
         
-        <h5 className="card-title">Quatation</h5>
+        <h5 className="card-title">Quotation
+<FontAwesomeIcon
+  icon={faPenToSquare}
+  className="position-absolute"
+  style={{
+    right: "10px",
+    cursor: "pointer"
+  }}
+  onClick={() => {
+  if (editingField === "quotes") {
+    setEditingField(null);
+  } else {
+    setEditingField("quotes");
+    setFieldValue(selectedCompany.quotes || "");
+  }
+}}
+
+  />
+           
+           </h5>
         <hr/>
         <p className="text-start mb-0">
-          {selectedCompany.quotes || "No quotes available"}
-        </p>
+  {editingField === "quotes" ? (
+    <>
+      <textarea
+        className="form-control form-control-sm"
+        rows="3"
+        value={fieldValue}
+        onChange={(e) => setFieldValue(e.target.value)}
+      />
+      <button
+        className="btn btn-sm btn-light mt-2"
+        onClick={() => {
+          const updatedCompany = {
+            ...selectedCompany,
+            quotes: fieldValue
+          };
+
+          setSelectedCompany(updatedCompany);
+
+          
+          updateCompany(updatedCompany);
+
+          setEditingField(null);
+        }}
+      >
+        Save
+      </button>
+    </>
+  ) : (
+    selectedCompany.quotes || "No quotes available"
+  )}
+</p>
+
       </div>
+      
     </div>
-    <div className="card ms-4 text-light shadow-sm mt-3 offer bg-secondary" style={{width: "25rem"}}>
+    <div className="card ms-4 text-light shadow-sm mt-3 offer bg-secondary position-relative" style={{width: "25rem"}}>
       <div className="card-body">
-        <h5 className="card-title">Planning to offer</h5>
+        <h5 className="card-title">Planning to offer
+          <FontAwesomeIcon
+          icon={faPenToSquare}
+        className="position-absolute"
+        style={{
+            right: "10px",
+            cursor: "pointer"
+        }}
+    onClick={() => {
+    if (editingField === "proposed") {
+        setEditingField(null);
+    } else {
+        setEditingField("proposed");
+        setFieldValue(selectedCompany.proposed || "");
+    }
+    }}
+  />
+        </h5>
         <hr/>
         <p className="text-start mb-0">
-          {selectedCompany.proposed || "Yet To Plan"}
-        </p>
+            {editingField === "proposed" ? (
+    <>
+      <textarea
+        className="form-control form-control-sm"
+        rows="3"
+        value={fieldValue}
+        onChange={(e) => setFieldValue(e.target.value)}
+      />
+      <button
+        className="btn btn-sm btn-light mt-2"
+        onClick={() => {
+          const updatedCompany = {
+            ...selectedCompany,
+            proposed: fieldValue
+          };
+
+          setSelectedCompany(updatedCompany);
+            updateCompany(updatedCompany);
+          setEditingField(null);
+        }}
+      >
+        Save
+      </button>
+    </>
+  ) : (
+    selectedCompany.proposed || "No proposed available"
+  )}
+</p>
+
       </div>
     </div>
-    <div className="card ms-4 bg-success text-light shadow-sm mt-3 offer" style={{width: "25rem"}}>
+    <div className="card ms-4 bg-success text-light shadow-sm mt-3 offer position-relative" style={{width: "25rem"}}>
       <div className="card-body">
-        <h5 className="card-title reqiure">Client Requests</h5>
+        <h5 className="card-title reqiure">Client Requests
+          <FontAwesomeIcon icon={faPenToSquare} className="position-absolute"
+            style={{
+            right: "10px",
+            cursor: "pointer"
+            }}
+            onClick={() => {
+            if (editingField === "replied") {
+            setEditingField(null);
+            } else {
+            setEditingField("replied");
+            setFieldValue(selectedCompany.replied || "");
+            }
+            }}/>
+        </h5>
         <hr/>
         <p className="text-start mb-0">
-          {selectedCompany.replied || "No requirements available"}
-        </p>
+  {editingField === "replied" ? (
+    <>
+      <textarea
+        className="form-control form-control-sm"
+        rows="3"
+        value={fieldValue}
+        onChange={(e) => setFieldValue(e.target.value)}
+      />
+      <button
+        className="btn btn-sm btn-light mt-2"
+        onClick={() => {
+          const updatedCompany = {
+            ...selectedCompany,
+            replied: fieldValue
+          };
+
+          setSelectedCompany(updatedCompany);
+          updateCompany(updatedCompany);
+          setEditingField(null);
+        }}
+      >
+        Save
+      </button>
+    </>
+  ) : (
+    selectedCompany.replied || "No replies available"
+  )}
+</p>
       </div>
     </div>
     </div>
-    <div className="card text-light shadow-sm mt-3 offer1 w-100" style={{backgroundColor:"#9e53e8"}}>
+    <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#9e53e8"}}>
       <div className="card-body">
         
-        <h5 className="card-title">Meeting 1</h5>
+        <h5 className="card-title">Meeting 1
+          <FontAwesomeIcon
+  icon={faPenToSquare}
+  className="position-absolute"
+  style={{
+    right: "10px",
+    cursor: "pointer"
+  }}
+  onClick={() => {
+  if (editingField === "meet_1") {
+    setEditingField(null);
+  } else {
+    setEditingField("meet_1");
+    setFieldValue(selectedCompany.meet_1 || "");
+  }}}
+  />
+        </h5>
         <hr/>
         <p className="text-start mb-0">
-          {selectedCompany.meet_1}
-        </p>
+  {editingField === "meet_1" ? (
+    <>
+      <textarea
+        className="form-control form-control-sm"
+        rows="3"
+        value={fieldValue}
+        onChange={(e) => setFieldValue(e.target.value)}
+      />
+      <button
+        className="btn btn-sm btn-light mt-2"
+        onClick={() => {
+          const updatedCompany = {
+            ...selectedCompany,
+            meet_1: fieldValue
+          };
+
+          setSelectedCompany(updatedCompany);
+          updateCompany(updatedCompany);
+          setEditingField(null);
+        }}
+      >
+        Save
+      </button>
+    </>
+  ) : (
+    selectedCompany.meet_1 || "No meet held"
+  )}
+</p>
       </div>
     </div>
 
-    <div className="card text-light shadow-sm mt-3 offer1 w-100" style={{backgroundColor:"#ce8b39"}}>
+    <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#ce8b39"}}>
       <div className="card-body">
-        <h5 className="card-title">Meeting 2</h5>
+        <h5 className="card-title">Meeting 2
+          <FontAwesomeIcon
+  icon={faPenToSquare}
+  className="position-absolute"
+  style={{
+    right: "10px",
+    cursor: "pointer"
+  }}
+  onClick={() => {
+  if (editingField === "meet_2") {
+    setEditingField(null);
+  } else {
+    setEditingField("meet_2");
+    setFieldValue(selectedCompany.meet_2 || "");
+  }}}/>
+        </h5>
         <hr/>
         <p className="text-start mb-0">
-          {selectedCompany.meet_2 || "Yet To Plan"}
-        </p>
+  {editingField === "meet_2" ? (
+    <>
+      <textarea
+        className="form-control form-control-sm"
+        rows="3"
+        value={fieldValue}
+        onChange={(e) => setFieldValue(e.target.value)}
+      />
+      <button
+        className="btn btn-sm btn-light mt-2"
+        onClick={() => {
+          const updatedCompany = {
+            ...selectedCompany,
+            meet_2: fieldValue
+          };
+
+          setSelectedCompany(updatedCompany);
+          updateCompany(updatedCompany);
+          setEditingField(null);
+        }}
+      >
+        Save
+      </button>
+    </>
+  ) : (
+    selectedCompany.meet_2 || "No meeting held"
+  )}
+</p>
+
       </div>
     </div>   
     </>
@@ -765,7 +1351,7 @@ const upcomingMeetings = leads
     <div className="d-flex justify-content-center">
       <div className="card bg-dark text-light shadow-sm" style={{ width: "75%" }}>
         <div className="card-body">
-          <h5 className="mb-3">Add Lead</h5>
+          <h5 className="mb-3">Add Company</h5>
 
           <form>
             <div className="row g-3">
@@ -774,6 +1360,11 @@ const upcomingMeetings = leads
                 <input
                   className="form-control form-control-md"
                   placeholder="Enter company name"
+                  onChange={(e) =>
+                  setNewCompany({
+                    ...newCompany,
+                    CompanyName: e.target.value
+                    })}
                 />
               </div>
 
@@ -782,6 +1373,12 @@ const upcomingMeetings = leads
                 <input
                   className="form-control form-control-md"
                   placeholder="Enter company Domain"
+                  onChange={(e) =>
+                  setNewCompany({
+                    ...newCompany,
+                    domain: e.target.value
+                    })
+                    }
                 />
               </div>
 
@@ -790,6 +1387,12 @@ const upcomingMeetings = leads
                 <input
                   className="form-control form-control-md"
                   placeholder="Enter contact name"
+                  onChange={(e) =>
+                  setNewCompany({
+                    ...newCompany,
+                    poc: e.target.value
+                    })
+                    }
                 />
               </div>
 
@@ -798,6 +1401,12 @@ const upcomingMeetings = leads
                 <input
                   type="email"
                   className="form-control form-control-md"
+                  onChange={(e) =>
+                  setNewCompany({
+                    ...newCompany,
+                    email: e.target.value
+                    })
+                    }
                   placeholder="Enter email"
                 />
               </div>
@@ -807,20 +1416,23 @@ const upcomingMeetings = leads
                 <input
                   className="form-control form-control-md"
                   placeholder="Enter phone"
+                  onChange={(e) =>
+                  setNewCompany({
+                    ...newCompany,
+                    phone: e.target.value
+                    })
+                    }
                 />
               </div>
-
-              <div className="col-md-6">
-                <label className="form-label">Status</label>
-                <select className="form-select form-select-md">
-                  <option>Positive</option>
-                  <option>Under Progress</option>
-                  <option>Not Interested</option>
-                </select>
-              </div>
-
+              <div className="col-md-6"></div>
+              
               <div className="d-grid gap-2 col-6 mx-auto mt-4">
-                <button className="btn btn-primary">
+                <button className="btn btn-primary"
+                onClick={(e) => {
+                  e.preventDefault();
+                  addCompany(newCompany);
+                  }}
+                >
                   Save Lead
                 </button>
               </div>
@@ -844,7 +1456,7 @@ const upcomingMeetings = leads
   );
 }
 
-
+// Stat Card
 function StatCard({ title, value, onClick, active }) {
   return (
     <div
@@ -858,4 +1470,3 @@ function StatCard({ title, value, onClick, active }) {
     </div>
   );
 }
-
