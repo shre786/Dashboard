@@ -4,7 +4,9 @@ import "./Dashboard.css";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMagnifyingGlass, faPenToSquare } from "@fortawesome/free-solid-svg-icons";
 
-const API_URL="http://127.0.0.1:8000/api/";
+// const API_URL="http://127.0.0.1:8000/api/";
+
+const API_URL="http://139.5.189.170:8000/api/";
 
 const STAT_CARD_COLORS = {
   division: "#ffffff",        
