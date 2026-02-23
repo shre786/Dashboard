@@ -89,14 +89,25 @@ WSGI_APPLICATION = 'dashboard.wsgi.application'
 # }
 
 # Postgresql configuration
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'dashboard',   
+#         'USER': 'vgt_admin',
+#         'PASSWORD': 'portaldb123',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'dashboard',   
+        'NAME': 'b2b',   
         'USER': 'vgt_admin',
-        'PASSWORD': 'portaldb123',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'PASSWORD': 'vg@0602',
+        'HOST': '139.5.189.170',
+        'PORT': '5433',
     }
 }
 
