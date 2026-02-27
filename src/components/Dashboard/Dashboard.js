@@ -414,7 +414,6 @@ const visibleCompanies = filteredCompanies.filter(lead => {
     return lead.status === "Positive" || lead.status === "Interested";
   }
 
-  // 🔵 If Total Leads → allow dropdown to control
   if (selectedStat === "Total Leads") {
 
     if (statusFilter === "All") {
@@ -701,7 +700,7 @@ useEffect(() => {
 const fetchFollowups = async () => {
   try {
     const response = await fetch(
-      "http://127.0.0.1:8000/api/companies/followups/"
+      "http://139.5.189.170:8000/api/companies/followups/"
     );
     const result = await response.json();
 
