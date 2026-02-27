@@ -103,11 +103,19 @@ WSGI_APPLICATION = 'dashboard.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
+<<<<<<< HEAD
         'NAME': 'b2b',   
         'USER': 'vgt_admin',
         'PASSWORD': 'vgt@0602',
         'HOST': '139.5.189.170',
         'PORT': '5433',
+=======
+        'NAME': 'dashboard',   
+        'USER': 'postgres',
+        'PASSWORD': 'shreyash786',
+        'HOST': 'localhost',
+        'PORT': '5432',
+>>>>>>> 6c98e9f (Updated frontend meeting discussion logic)
     }
 }
 
@@ -136,7 +144,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
+USE_TZ = True
 
 USE_I18N = True
 

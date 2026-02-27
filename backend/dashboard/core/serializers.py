@@ -2,6 +2,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from .models import Dashboard_sheet
+from django.utils.timezone import localtime
+from rest_framework import serializers
 
 User = get_user_model()
 
@@ -47,23 +49,46 @@ class UserSerializer(serializers.ModelSerializer):
 class CompanySerializer(serializers.ModelSerializer):
     CompanyName = serializers.CharField(source='company_name')
     domain = serializers.CharField(source='company_domain', required=False, allow_blank=True)
-    website = serializers.URLField(source='company_website', required=False, allow_blank=True, default='NA')
+    website = serializers.URLField(source='company_website', required=False, allow_blank=True, allow_null=True, default='')
     poc = serializers.CharField(source='point_of_contact', required=False, allow_blank=True)
-    meetingAvailability = serializers.CharField(source='availability_for_meeting', required=False, allow_blank=True, allow_null=True)
-    meetingDate = serializers.DateTimeField(source='meeting_date', required=False, allow_null=True)
+    meetingAvailability = serializers.CharField(
+        source='availability_for_meeting',
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
+    
+    meetingDate = serializers.DateTimeField(
+    source='meeting_date',
+    required=False,
+    allow_null=True,
+    input_formats=[
+        "%Y-%m-%dT%H:%M:%S.%fZ",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M"
+    ]
+)
     quotes = serializers.CharField(source='quotation', required=False, allow_blank=True, allow_null=True)
     replied = serializers.CharField(source='reply', required=False, allow_blank=True, allow_null=True)
     meet_1 = serializers.CharField(source='meeting_1', required=False, allow_blank=True, allow_null=True)
     meet_2 = serializers.CharField(source='meeting_2', required=False, allow_blank=True, allow_null=True)
+    meeting_discussion = serializers.CharField(
+    required=False,
+    allow_blank=True,
+    allow_null=True
+)
+    planning_to_offer = serializers.CharField( required=False, allow_blank=True, allow_null=True)
     created_at = serializers.DateTimeField(source='date_created', read_only=True)
     updated_at = serializers.DateTimeField(source='date_updated', read_only=True)
     
     class Meta:
         model = Dashboard_sheet
         fields = [
-            'id', 'CompanyName', 'domain', 'website', 'poc', 'email', 'phone', 
-            'status', 'meetingAvailability', 'meetingDate', 'quotes', 'proposed', 
-            'replied', 'meet_1', 'meet_2', 'created_at', 'updated_at'
+            'id', 'CompanyName', 'domain', 'website', 'poc', 'email', 'phone', 'meeting_discussion',
+            'status', 'meetingAvailability', 'meetingDate', 'quotes', 
+            'replied', 'meet_1', 'meet_2', 'created_at', 'updated_at','planning_to_offer'
         ]
     
     def validate_CompanyName(self, value):
@@ -81,41 +106,101 @@ class CompanySerializer(serializers.ModelSerializer):
         return value
     
     def validate_website(self, value):
-        # If website is not provided or empty, use default
-        if not value or value.strip() == '':
-            return 'http://example.com'
+        # convert empty/placeholder values to empty string so frontend can ignore them
+        if not value or not value.strip() or value.strip().lower() == 'na':
+            return ''
         return value
-
 
 class CompanyListSerializer(serializers.ModelSerializer):
     CompanyName = serializers.CharField(source='company_name')
     domain = serializers.CharField(source='company_domain')
+    # expose full website in list so frontend can compute favicons reliably
+    website = serializers.URLField(source='company_website', required=False, allow_blank=True, allow_null=True)
     poc = serializers.CharField(source='point_of_contact')
-    meetingDate = serializers.DateTimeField(source='meeting_date')
+
+    meetingAvailability = serializers.CharField(
+        source='availability_for_meeting',
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
+    quotes = serializers.CharField(source='quotation', required=False, allow_blank=True, allow_null=True)
+    meet_1 = serializers.CharField(source='meeting_1', required=False, allow_blank=True, allow_null=True)
+    meet_2 = serializers.CharField(source='meeting_2', required=False, allow_blank=True, allow_null=True)
+    # response = serializers.CharField(source='response', required=False, allow_blank=True, allow_null=True)
+    meeting_discussion = serializers.CharField(
+    required=False,
+    allow_blank=True,
+    allow_null=True
+)
+    replied = serializers.CharField(source='reply', required=False, allow_blank=True, allow_null=True)
+    planning_to_offer = serializers.CharField( required=False, allow_blank=True, allow_null=True)
+    meetingDate = serializers.SerializerMethodField()
+    def get_meetingDate(self, obj):
+        if obj.meeting_date:
+            return localtime(obj.meeting_date)
+        return None
+    
     
     class Meta:
         model = Dashboard_sheet
-        fields = ['id', 'CompanyName', 'domain', 'poc', 'email', 'phone', 'status', 'meetingDate']
-
+        fields = [
+            'id', 'CompanyName', 'domain', 'website', 'poc', 'email', 'phone', 'meeting_discussion','replied',
+            'status','meetingAvailability',  'meetingDate', 'quotes', 'meet_1', 'meet_2', 'planning_to_offer' #'response',
+        ]
 
 class CompanyStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=[
-        'Under Progress', 'Interested', 'Awaiting for Meeting', 'Quotation', 'Skip'
+        'Under Progress', 'Interested', 'Awaiting for Meeting', 'Quotation', 'Skip', 'Not Interested'
     ])
 
 
 class UpcomingMeetingSerializer(serializers.ModelSerializer):
     company_id = serializers.IntegerField(source='id')
     CompanyName = serializers.CharField(source='company_name')
-    meetingDate = serializers.DateTimeField(source='meeting_date')
+    meetingDate = serializers.DateTimeField(
+    source='meeting_date',
+    required=False,
+    allow_null=True,
+    input_formats=[
+        "%Y-%m-%dT%H:%M:%S.%fZ",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M"
+    ]
+)
     is_today = serializers.SerializerMethodField()
+    is_nearest = serializers.SerializerMethodField()
+
     
     class Meta:
         model = Dashboard_sheet
-        fields = ['company_id', 'CompanyName', 'meetingDate', 'is_today']
+        fields = ['company_id', 'CompanyName', 'meetingDate', 'is_today', 'is_nearest']
     
     def get_is_today(self, obj):
         from datetime import date
         if obj.meeting_date:
             return obj.meeting_date.date() == date.today()
         return False
+    
+    def get_is_nearest(self, obj):
+        request = self.context.get("request")
+
+        # Get all future meetings ordered
+        future_meetings = Dashboard_sheet.objects.filter(
+    meeting_date__gt=today_start
+    ).order_by("meeting_date")
+
+        if not future_meetings.exists():
+            return False
+
+        nearest = future_meetings.first()
+
+        return obj.id == nearest.id
+
+class CompanyResponseSerializer(serializers.ModelSerializer):
+    CompanyName = serializers.CharField(source='company_name')
+    class Meta:
+        model = Dashboard_sheet
+        fields = ['id', 'CompanyName', 'response', 'follow_ups']

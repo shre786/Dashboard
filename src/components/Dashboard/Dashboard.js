@@ -2,10 +2,9 @@ import React, {useEffect, useState} from "react";
 import "./Dashboard.css";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass, faPenToSquare } from "@fortawesome/free-solid-svg-icons";
+import { faMagnifyingGlass, faPenToSquare, faXmark } from "@fortawesome/free-solid-svg-icons";
 
-// const API_URL="http://127.0.0.1:8000/api/";
-
+// const API_URL="http://127.0.0.1:8000/api";
 const API_URL="http://139.5.189.170:8000/api/";
 
 const STAT_CARD_COLORS = {
@@ -29,26 +28,48 @@ export default function Dashboard() {
     const [fieldValue, setFieldValue] = useState("");
     const [activeTab, setActiveTab] = useState("Updates");
     const [statusFilter, setStatusFilter] = useState("All");
+    const [responses, setResponses] = useState([]);
+    const [updates, setUpdates] = useState([]);
     const [newCompany, setNewCompany] = useState({
   CompanyName: "",
   domain: "",
+  website: "",
   poc: "",
   email: "",
   phone: "",
   status: "Under Progress"
 });
 
+  
+
 const getFavicon = (website, domain) => {
-  if (website) {
-    try {
-      return `https://www.google.com/s2/favicons?sz=64&domain=${new URL(website).hostname}`;
-    } catch {
+  const sanitizeDomain = (d) => {
+    if (!d) return null;
+
+    let host = d.toString().trim();
+    if (host.toLowerCase() === "na" || host.toLowerCase() === "http://example.com") {
       return null;
     }
+    try {
+      // if it already contains scheme, parse it and take hostname
+      const u = new URL(host);
+      host = u.hostname;
+    } catch (_) {
+      // remove any leading protocol manually
+      host = host.replace(/^https?:\/\//i, "").split("/")[0];
+    }
+    return host || null;
+  };
+
+  
+  const hostFromWeb = sanitizeDomain(website);
+  if (hostFromWeb) {
+    return `https://www.google.com/s2/favicons?sz=64&domain=${hostFromWeb}`;
   }
 
-  if (domain) {
-    return `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+  const hostFromDomain = sanitizeDomain(domain);
+  if (hostFromDomain) {
+    return `https://www.google.com/s2/favicons?sz=64&domain=${hostFromDomain}`;
   }
 
   return null;
@@ -143,24 +164,187 @@ const extractName = (text = "") => {
 // };
 
 useEffect(() => {
+  console.log("Fetching from:", API_URL);
+
   fetch(API_URL)
-    .then(res => res.json())
+    .then(res => {
+      console.log("Raw Response:", res);
+      return res.json();
+    })
     .then(result => {
-  if (result.status === "success") {
-    const cleaned = result.data.companies.map(c => ({
-      ...c,
-      meetingDate: c.meetingDate
-        ? new Date(c.meetingDate)
-        : null
-    }));
+      console.log("Full API RESULT:", result);
 
-    setLeads(cleaned);
-  }
-})
+      if (result.status === "success") {
+        console.log("Companies Array:", result.data.companies);
 
-    .catch(err => console.error("Error loading companies:", err));
+        const cleaned = result.data.companies.map(c => {
+        const rawPoc = c.poc || "";
+
+  return {
+    ...c,
+    meetingDate: c.meetingDate ? new Date(c.meetingDate) : null,
+
+    website:
+      c.website && c.website !== 'http://example.com' && c.website !== 'NA'
+        ? c.website
+        : null,
+
+    // Auto-extract if fields missing
+    email: c.email || extractEmail(rawPoc),
+    phone: c.phone || extractPhone(rawPoc),
+    poc: extractName(rawPoc)
+  };
+});
+
+        console.log("Cleaned Data Sent To State:", cleaned);
+
+        setLeads(cleaned);
+      } else {
+        console.log("API did not return success:", result);
+      }
+    })
+    .catch(error => {
+      console.error("Fetch Error:", error);
+    });
+
 }, []);
 
+
+const handleSkip = async (companyId) => {
+  console.log("Skip clicked", companyId);
+    try {
+      const response = await fetch(
+        `${API_URL}/companies/${companyId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "Skip" }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.status === "success") {
+        setLeads(prevLeads =>
+  prevLeads.map(lead =>
+    lead.id === companyId
+      ? { ...lead, status: "Skip" }
+      : lead
+  )
+);
+setSelectedCompany(prev =>
+      prev?.id === companyId ? null : prev
+    );
+      }
+
+    } catch (error) {
+      console.error("Skip failed", error);
+    }
+  };
+
+  const handleUnskip = async (companyId) => {
+  try {
+    const response = await fetch(
+      `${API_URL}/companies/${companyId}/status`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Under Progress" }) 
+      }
+    );
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+      setLeads(prev =>
+        prev.map(lead =>
+          lead.id === companyId
+            ? { ...lead, status: "Under Progress" }
+            : lead
+        )
+      );
+
+      setSelectedCompany(null);
+    }
+
+  } catch (error) {
+    console.error("Unskip failed", error);
+  }
+};
+
+const handleMakeInterested = async (companyId) => {
+  try {
+    const response = await fetch(
+      `${API_URL}/companies/${companyId}/status`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "Interested" }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+      setLeads(prev =>
+        prev.map(lead =>
+          lead.id === companyId
+            ? { ...lead, status: "Interested" }
+            : lead
+        )
+      );
+
+      setSelectedCompany(prev =>
+        prev?.id === companyId
+          ? { ...prev, status: "Interested" }
+          : prev
+      );
+    }
+
+  } catch (error) {
+    console.error("Interested update failed", error);
+  }
+};
+
+const handleNotInterested = async (companyId) => {
+  try {
+    const response = await fetch(
+      `${API_URL}/companies/${companyId}/status`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "Not Interested" }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+      setLeads(prev =>
+        prev.map(lead =>
+          lead.id === companyId
+            ? { ...lead, status: "Not Interested" }
+            : lead
+        )
+      );
+
+      setSelectedCompany(prev =>
+        prev?.id === companyId
+          ? { ...prev, status: "Not Interested" }
+          : prev
+      );
+    }
+
+  } catch (error) {
+    console.error("Not Interested failed", error);
+  }
+};
 
 // Helpers
 const totalLeads = leads.filter(
@@ -183,11 +367,73 @@ const filteredCompanies = leads.filter(lead =>
   lead.CompanyName?.toLowerCase().includes(searchText.toLowerCase())
 );
 
-const visibleCompanies = filteredCompanies.filter(lead => {
-  if (statusFilter === "All") return lead.status !== "Skip";
-  return lead.status === statusFilter;
-});
+// const visibleCompanies = filteredCompanies.filter(lead => {
 
+//   if (selectedStat !== "Total Leads" && lead.status === "Skip") {
+//     return false;
+//   }
+
+//   if (selectedStat === "Positives") {
+//     return lead.status === "Positive";
+//   }
+
+//   if (selectedStat === "Conversation Under Progress") {
+//     return lead.status === "Under Progress";
+//   }
+
+//   if (selectedStat === "Client Not Interested") {
+//     return lead.status === "Not Interested";
+//   }
+
+  
+//   if (statusFilter === "Skip") {
+//     return lead.status === "Skip";
+//   }
+
+//   if (statusFilter !== "All") {
+//     return lead.status === statusFilter;
+//   }
+
+//   // Default: Total Leads (excluding Skip)
+//   return lead.status !== "Skip";
+// });
+
+const visibleCompanies = filteredCompanies.filter(lead => {
+
+ 
+
+  if (selectedStat === "Client Not Interested") {
+    return lead.status === "Not Interested";
+  }
+
+  if (selectedStat === "Conversation Under Progress") {
+    return lead.status === "Under Progress";
+  }
+
+  if (selectedStat === "Positives") {
+    return lead.status === "Positive" || lead.status === "Interested";
+  }
+
+  // 🔵 If Total Leads → allow dropdown to control
+  if (selectedStat === "Total Leads") {
+
+    if (statusFilter === "All") {
+      return true;
+    }
+
+    if (statusFilter === "Interested") {
+      return lead.status !== "Skip" && lead.status !== "Not Interested";
+    }
+
+    if (statusFilter === "Skip") {
+      return lead.status === "Skip";
+    }
+
+    return lead.status === statusFilter;
+  }
+
+  return true;
+});
 
 const isToday = (date) => {
   if (!date) return false;
@@ -208,8 +454,6 @@ const isToday = (date) => {
 
   return meetingDate.getTime() === currentDate.getTime();
 };
-
-const [updates, setUpdates] = useState([]);
 
 useEffect(() => {
 
@@ -238,8 +482,7 @@ useEffect(() => {
   const formattedUpdates = leads
     .filter(l => {
       if (!l.meetingDate) return false;
-
-      const meetingDate = new Date(l.meetingDate);
+      const meetingDate = l.meetingDate;
 
       return (
         meetingDate >= startOfNextWeek &&
@@ -258,25 +501,28 @@ useEffect(() => {
 
 }, [leads]);
 
-
-
 const formatDate = (dateValue) => {
   if (!dateValue) return "No Date";
 
-  const date = new Date(dateValue);
+  const date =
+    dateValue instanceof Date
+      ? dateValue
+      : new Date(dateValue);
 
   return date.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric"
-  }) +
-  " · " +
-  date.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true
-  });
-};
+})
+    };
+  //  +
+  // " · " +
+  // date.toLocaleTimeString("en-IN", {
+  //   hour: "2-digit",
+  //   minute: "2-digit",
+  //   hour12: true
+  // });
+
 
 
 const getDateColor = (dateValue) => {
@@ -335,43 +581,83 @@ const upcomingMeetings = leads
 
 const updateCompany = async (company) => {
   try {
-    const response = await fetch(`${API_URL}${company.id}/`, {
-      method: "PUT",
+    const payload = {
+  domain: company.domain || "",
+  website:
+    company.website && company.website.trim() !== ""
+      ? company.website.startsWith("http")
+        ? company.website
+        : `https://${company.website}`
+      : "",
+
+  poc: company.poc || "",
+  email: company.email || "",        
+  phone: company.phone || "",       
+
+  status:
+    company.status && company.status !== "NA"
+      ? company.status
+      : "",                          
+
+  meetingAvailability: company.meetingAvailability || "",
+
+  meetingDate: company.meetingDate
+    ? company.meetingDate.toISOString()
+    : null,   // this is OK (DateTimeField allows null)
+
+  quotes: company.quotes || "",
+  planning_to_offer: company.planning_to_offer || "",
+  replied: company.replied || "",
+  meet_1: company.meet_1 || "",
+  meet_2: company.meet_2 || "",
+  meeting_discussion: company.meeting_discussion || "",
+};
+
+    const response = await fetch(`${API_URL}/companies/${company.id}`, {
+      method: "PATCH",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(company)
+      body: JSON.stringify(payload)
     });
 
     const result = await response.json();
+    console.log(result);
 
     if (result.status === "success") {
-   
-      const res = await fetch(API_URL);
-      const data = await res.json();
-      
-      // Convert meetingDate strings to Date objects
-      const cleaned = data.data.companies.map(c => ({
-        ...c,
-        meetingDate: c.meetingDate ? new Date(c.meetingDate) : null
-      }));
-      
-      setLeads(cleaned);
+      setLeads(prev =>
+        prev.map(l =>
+          l.id === company.id ? { ...l, ...company } : l
+        )
+      );
+      setSelectedCompany(company);
     }
 
   } catch (error) {
-    console.error("Update failed:", error);
+    console.error("Update error:", error);
   }
 };
 
+const todaysMeetings = upcomingMeetings.filter(m =>
+    isToday(m.date)
+  );
+ 
 const addCompany = async (newCompany) => {
   try {
-    const response = await fetch(`${API_URL}addcompany`, {
+   
+    const payload = {
+      ...newCompany
+    };
+    if (!payload.website || payload.website.trim() === "") {
+      delete payload.website;
+    }
+
+    const response = await fetch(`${API_URL}/addcompany`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(newCompany)
+      body: JSON.stringify(payload)
     });
 
     const result = await response.json();
@@ -379,8 +665,6 @@ const addCompany = async (newCompany) => {
     if (result.status === "success") {
       const res = await fetch(API_URL);
       const data = await res.json();
-      
-      // Convert meetingDate strings to Date objects
       const cleaned = data.data.companies.map(c => ({
         ...c,
         meetingDate: c.meetingDate ? new Date(c.meetingDate) : null
@@ -395,47 +679,104 @@ const addCompany = async (newCompany) => {
   }
 };
 
-const deleteCompany = async (id) => {
+const fetchResponses = async () => {
   try {
-    const response = await fetch(`${API_URL}${id}/`, {
-      method: "DELETE"
-    });
-
-    const result = await response.json();
-
-    if (result.status === "success") {
-      setLeads(prev => prev.filter(c => c.id !== id));
+    const res = await fetch(`${API_URL}/responses`);
+    const data = await res.json();
+    console.log("FULL RESPONSE:", data); 
+    if (data.status === "success") {
+      setResponses(data.data.responses);
     }
-
   } catch (error) {
-    console.error("Delete failed:", error);
+    console.error("Failed to fetch responses", error);
   }
 };
 
+const [followups, setFollowups] = useState([]);
+
+useEffect(() => {
+  fetchFollowups();
+}, []);
+
+const fetchFollowups = async () => {
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/api/companies/followups/"
+    );
+    const result = await response.json();
+
+    if (result.status === "success") {
+      const allMeetings = [
+        ...(result.today_meetings || []),
+        ...(result.future_meetings || [])
+      ];
+
+      const formatted = allMeetings.map(item => ({
+        id: item.company_id,
+        company: item.CompanyName,
+        date: new Date(item.meeting_date),
+        status: item.status
+      }));
+
+      // Sort by date
+      formatted.sort((a, b) => a.date - b.date);
+
+      setFollowups(formatted);
+    }
+  } catch (error) {
+    console.error("Error fetching followups:", error);
+  }
+};
+
+  const hasToday = followups.some(item => {
+    const d = new Date(item.date);
+    d.setHours(0,0,0,0);
+    return d.getTime() === today.getTime();
+  });
+
+  const nearestDate = !hasToday && followups.length > 0
+    ? followups[0].date
+    : null;
 
   return (
      <div className="container-fluid p-1">
         <div style={{ padding: "20px" }}>
       <div className="container-fluid mb-0">
-  <div className="card border-0 text-center" style={{backgroundColor: "#232323"}}>
+  <div className="card border-0 text-start" style={{backgroundColor: "#232323"}}>
     <div className="card-body py-2">
     
-      <h2
-        className="fw-bold text-light mb-0"
-        title="B2B Data"
-        style={{
-          cursor:"pointer",
-          letterSpacing: "1px",
-          transition: "transform 0.3s ease"
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
-        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-      >
-      <img src="/B2B.ico" className="me-2" alt="icon"
-              width="30" height="30"/>Bussiness Management Software
-      </h2>
+     <div className="d-flex align-items-center justify-content-between">
 
-      <small className="text-light d-block mt-2">
+  <h2
+    className="fw-bold text-light mb-0 d-flex align-items-center"
+    title="B2B Data"
+    style={{
+      cursor: "pointer",
+      letterSpacing: "1px",
+      transition: "transform 0.3s ease"
+    }}
+    onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
+    onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+  >
+    <img
+      src="/B2B.ico"
+      className="me-2"
+      alt="icon"
+      width="30"
+      height="30"
+    />
+    Bussiness Management Software
+  </h2>
+
+  <img
+    src="https://portal.vasundharaa.in/static/vgtlogo.png"
+    alt="VGT Logo"
+    width="220"
+    className="img-fluid"
+  />
+
+</div>
+      <small className="text-light d-block ms-2 mt-2">
         Bussiness Management Planning
       </small>
 
@@ -474,18 +815,13 @@ const deleteCompany = async (id) => {
       onClick={() => setActiveTab("Updates")}
       className="nav-link fw-bold px-4 py-2 position-relative"
       style={{
-        backgroundColor:
-          activeTab === "Updates" ? "#0d6efd" : "#000000",
-        color: "#fff",
-        borderRadius: "8px 8px 0 0",
-        border: "none",
-        fontSize: "16px",
-        cursor: "pointer",
-        transition: "0.2s ease"
+        backgroundColor:activeTab === "Updates" ? "#0d6efd" : "#000000",
+        color: "#fff",borderRadius: "8px 8px 0 0",
+        border: "none",fontSize: "16px",
+        cursor: "pointer",transition: "0.2s ease"
       }}
     >
-      Updates
-
+      Meeting Scheduled
       {unreadUpdates > 0 && activeTab === "Updates" && (
         <span
           className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
@@ -500,28 +836,24 @@ const deleteCompany = async (id) => {
   {/* Responses Tab */}
   <li className="nav-item">
     <span
-      onClick={() => setActiveTab("Responses")}
+      onClick={() => {
+  setActiveTab("Responses");
+  fetchResponses();
+}}
       className="nav-link fw-bold px-4 py-2 ms-1"
       style={{
-        backgroundColor:
-          activeTab === "Responses" ? "#0d6efd" : "#000000",
-        color: "#fff",
-        borderRadius: "8px 8px 0 0",
-        border: "none",
-        fontSize: "16px",
-        cursor: "pointer",
-        transition: "0.2s ease"
-      }}
-    >
-      Responses
+        backgroundColor:activeTab === "Responses" ? "#0d6efd" : "#000000",
+        color: "#fff", borderRadius: "8px 8px 0 0",
+        border: "none", fontSize: "16px",
+        cursor: "pointer", transition: "0.2s ease"
+      }}>
+      Updates
     </span>
   </li>
 </ul>
 
-    <div
-      className="card bg-dark border-0 shadow-sm"
-      style={{ maxHeight: "170px", overflowY: "auto" }}
-    >
+    <div className="card bg-dark border-0 shadow-sm"
+      style={{ maxHeight: "170px", overflowY: "auto" }}>
       <div className="card-body p-2">
 
   {/* Updates Tab  */}
@@ -553,7 +885,7 @@ const deleteCompany = async (id) => {
                 fontWeight: update.read ? "normal" : "bold"
               }}
             >
-              {update.description}
+              {update.follow_ups || update.description}
             </div>
 
             <div
@@ -570,43 +902,36 @@ const deleteCompany = async (id) => {
       ))
     ))}
 
-  {/*  Response Tab */}
+
   {activeTab === "Responses" &&
-  (leads.filter(
-    l =>
-      l.response &&
-      l.response.trim() !== "" &&
-      l.response.trim().toLowerCase() !== "na"
-  ).length === 0 ? (
+  (responses.length === 0 ? (
     <div className="small text-muted">
       No responses available
     </div>
   ) : (
-    leads
-      .filter(
-        l =>
-          l.response &&
-          l.response.trim() !== "" &&
-          l.response.trim().toLowerCase() !== "na"
-      )
-      .map((lead, index) => (
-        <div
-          key={index}
-          className="mb-2 p-2 rounded text-start"
-          style={{
-            background: "#3a3a3a",
-            borderLeft: "4px solid #198754"
-          }}
-        >
-          <div className="fw-bold small text-light mb-1">
-            {lead.CompanyName}
-          </div>
+    responses.map((res, index) => {
 
-          <div className="small text-light">
-            {lead.response}
-          </div>
-        </div>
-      ))
+  console.log("Single response object:", res);  
+
+  return (
+    <div
+      key={index}
+      className="mb-2 p-2 rounded text-start"
+      style={{
+        background: "#3a3a3a",
+        borderLeft: "4px solid #198754"
+      }}
+    >
+      <div className="fw-bold small text-light mb-1">
+        {res.CompanyName}
+      </div>
+
+      <div className="small text-light">
+        {res.response}
+      </div>
+    </div>
+  );
+})
   ))}
 
 
@@ -662,14 +987,160 @@ const deleteCompany = async (id) => {
   day: "2-digit",
   month: "short",
   year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: true
+  
 })}
 
   </span>  
 </div>
           ))}
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="row mt-2 mb-3 align-items-center">
+  <div className="col-12">
+    <div className="card border-0 shadow-sm bg-dark text-light">
+      <div className="card-body py-2 px-3">
+
+        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
+          Todays Meetings
+        </h6>
+
+        {todaysMeetings.length === 0 && (
+          <div className="small text-muted">
+            No upcoming meetings scheduled
+          </div>
+        )}
+
+        <div
+  className="d-flex flex-column gap-2"
+  style={{
+    maxHeight: "150px",   // adjust height as needed
+    overflowY: "auto",
+    paddingRight: "4px"
+  }}
+>
+          {todaysMeetings.map((m, idx) =>  (
+            <div
+  key={idx}
+  className={`flex-fill p-2 rounded d-flex justify-content-between align-items-center upcoming-meeting-card ${
+    isToday(m.date) ? "meeting-today" : ""
+  }`}
+  style={{
+    backgroundColor: "#2d2d2d",
+    borderLeft: "4px solid #fd7e14",
+    minWidth: "0"
+  }}
+>
+{/* Company */}
+  <span
+    className="small fw-semibold text-truncate"
+    title={m.company}
+    style={{ maxWidth: "65%" }}
+  >
+    {m.company}
+  </span>
+  {/* Date first */}
+  <span className="small text-info fw-semibold me-2">
+    {m.date.toLocaleString("en-IN", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  
+})}
+
+  </span>  
+</div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="row mt-2 mb-3 align-items-center">
+  <div className="col-12">
+    <div className="card border-0 shadow-sm bg-dark text-light">
+      <div className="card-body py-2 px-3">
+
+        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
+          Follow-up Meetings
+        </h6>
+
+        {followups.length === 0 && (
+          <div className="small text-muted">
+            No follow-up meetings scheduled
+          </div>
+        )}
+
+        <div className="followup-scroll" style={{
+          display: "flex",
+          gap: "8px",
+          overflowX: "auto",
+          overflowY: "hidden",
+          whiteSpace: "nowrap",
+          paddingBottom: "4px"
+        }}>
+          {followups.map((m, idx) => {
+            const meetingDate = new Date(m.date);
+            meetingDate.setHours(0, 0, 0, 0);
+            const isToday = meetingDate.getTime() === today.getTime();
+
+            return (
+              <div
+                key={idx}
+                onClick={() => {
+                  const companyObject = leads.find(l => l.id === m.id);
+                  if (companyObject) {
+                    setSelectedCompany(companyObject);
+                    setShowForm(false);
+                    window.scrollTo({ top: 500, behavior: "smooth" });
+                  }
+                }}
+                style={{
+                  flex: "0 0 calc((100% - 16px) / 3)",
+                  minWidth: "180px",
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  backgroundColor: "#2d2d2d",
+                  borderLeft: isToday ? "4px solid #28a745" : "4px solid #fd7e14",
+                  cursor: "pointer",
+                  transition: "all 0.25s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "scale(1.02)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(253, 126, 20, 0.35)";
+                  e.currentTarget.style.backgroundColor = "#353535";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.backgroundColor = "#2d2d2d";
+                }}
+              >
+                <span
+                  className="small fw-semibold text-truncate text-light"
+                  title={m.company}
+                  style={{ maxWidth: "60%" }}
+                >
+                  {m.company}
+                </span>
+                <span className={`small fw-semibold ${isToday ? "text-success" : "text-info"}`} style={{marginLeft: "8px"}}>
+                  {isToday ? "Today" : m.date.toLocaleString("en-IN", {
+                    day: "2-digit",
+                    month: "short"
+                  })}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
       </div>
@@ -849,20 +1320,29 @@ const deleteCompany = async (id) => {
       <div className="card-body">
 
         <h4 className="mb-3 text-start company-web">
-  <a
-    href={selectedCompany.website}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="d-flex align-items-center gap-2 text-decoration-none"
-  >
-    <img
-      src={getFavicon(selectedCompany.website, selectedCompany.domain)}
-      alt=""
-      style={{ width: "20px", height: "20px" }}
-      onError={(e) => (e.currentTarget.style.display = "none")}
-    />
-    <span>{selectedCompany.CompanyName}</span>
-  </a>
+  {
+    (() => {
+      const companyUrl =
+        selectedCompany.website ||
+        (selectedCompany.domain ? `https://${selectedCompany.domain}` : "#");
+      return (
+        <a
+          href={companyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="d-flex align-items-center gap-2 text-decoration-none"
+        >
+          <img
+            src={getFavicon(selectedCompany.website, selectedCompany.domain)}
+            alt=""
+            style={{ width: "20px", height: "20px" }}
+            onError={(e) => (e.currentTarget.style.display = "none")}
+          />
+          <span>{selectedCompany.CompanyName}</span>
+        </a>
+      );
+    })()
+  }
 </h4>
  <div
    className="position-absolute d-flex gap-2"
@@ -871,26 +1351,28 @@ const deleteCompany = async (id) => {
      right: "10px"
    }}
  >
- 
+   {selectedCompany.status !== "Not Interested" && (
+  <button
+    className="btn btn-sm btn-warning"
+    onClick={() => handleNotInterested(selectedCompany.id)}>
+    Not Interested
+  </button>
+)}
+
+{selectedCompany.status === "Not Interested" && (
+  <button
+    className="btn btn-sm btn-primary"
+    onClick={() => handleMakeInterested(selectedCompany.id)}
+  >
+    Interested
+  </button>
+)}
+
    {/* Skip  */}
    {selectedCompany.status !== "Skip" && (
      <button
        className="btn btn-sm btn-danger"
-       onClick={async () => {
-  try {
-    await fetch(`${API_URL}${selectedCompany.id}/status`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ status: "Skip" })
-    });
-
-    // fetchCompanies();   
-  } catch (err) {
-    console.error(err);
-  }
-}}>
+       onClick={() => handleSkip(selectedCompany.id)}>
        Skip
      </button>
    )}
@@ -899,24 +1381,7 @@ const deleteCompany = async (id) => {
    {selectedCompany.status === "Skip" && (
      <button
        className="btn btn-sm btn-success"
-       onClick={async () => {
-  try {
-    await fetch(`${API_URL}${selectedCompany.id}/status`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ status: "Under Progress" })
-    });
-
-    // fetchCompanies();
-    setSelectedCompany(null);
-  } catch (err) {
-    console.error(err);
-  }
-}}
-
-     >
+       onClick={() => handleUnskip(selectedCompany.id)}>
        Unskip
      </button>
    )}
@@ -1058,17 +1523,27 @@ const deleteCompany = async (id) => {
 
 </div>
 
-{/* Save button */}
+
+
 {editMode && (
   <div className="text-end mt-3">
     <button
+      className="btn btn-secondary me-2"
+      onClick={() => {
+        setEditMode(false);
+        setEditableData(selectedCompany); 
+      }}
+    >
+      Cancel
+    </button>
+
+    <button
       className="btn btn-primary"
       onClick={() => {
-  updateCompany(editableData);
-  setSelectedCompany(editableData);
-  setEditMode(false);
-}}
-
+        updateCompany(editableData);
+        setSelectedCompany(editableData);
+        setEditMode(false);
+      }}
     >
       Save Changes
     </button>
@@ -1094,7 +1569,9 @@ const deleteCompany = async (id) => {
     setEditingField(null);
   } else {
     setEditingField("quotes");
-    setFieldValue(selectedCompany.quotes || "");
+    setFieldValue(selectedCompany.quotes && selectedCompany.quotes.trim() !== ""
+  ? selectedCompany.quotes
+  : "No quotes available");
   }
 }}
 
@@ -1112,6 +1589,15 @@ const deleteCompany = async (id) => {
         onChange={(e) => setFieldValue(e.target.value)}
       />
       <button
+  className=" btn btn-sm btn-light mt-2 me-2"
+  onClick={() => {
+    setEditingField(null); 
+    setFieldValue(selectedCompany.quotes); 
+  }}
+>
+  Cancel
+</button>
+      <button
         className="btn btn-sm btn-light mt-2"
         onClick={() => {
           const updatedCompany = {
@@ -1120,10 +1606,7 @@ const deleteCompany = async (id) => {
           };
 
           setSelectedCompany(updatedCompany);
-
-          
           updateCompany(updatedCompany);
-
           setEditingField(null);
         }}
       >
@@ -1153,7 +1636,7 @@ const deleteCompany = async (id) => {
         setEditingField(null);
     } else {
         setEditingField("proposed");
-        setFieldValue(selectedCompany.proposed || "");
+        setFieldValue(selectedCompany.planning_to_offer || "");
     }
     }}
   />
@@ -1169,11 +1652,20 @@ const deleteCompany = async (id) => {
         onChange={(e) => setFieldValue(e.target.value)}
       />
       <button
+  className=" btn btn-sm btn-light mt-2 me-2"
+  onClick={() => {
+    setEditingField(null); 
+    setFieldValue(selectedCompany.quotes); 
+  }}
+>
+  Cancel
+</button>
+      <button
         className="btn btn-sm btn-light mt-2"
         onClick={() => {
           const updatedCompany = {
             ...selectedCompany,
-            proposed: fieldValue
+            planning_to_offer: fieldValue
           };
 
           setSelectedCompany(updatedCompany);
@@ -1185,7 +1677,7 @@ const deleteCompany = async (id) => {
       </button>
     </>
   ) : (
-    selectedCompany.proposed || "No proposed available"
+    selectedCompany.planning_to_offer || "No proposed available"
   )}
 </p>
 
@@ -1219,6 +1711,15 @@ const deleteCompany = async (id) => {
         onChange={(e) => setFieldValue(e.target.value)}
       />
       <button
+  className=" btn btn-sm btn-light mt-2 me-2"
+  onClick={() => {
+    setEditingField(null); 
+    setFieldValue(selectedCompany.quotes); 
+  }}
+>
+  Cancel
+</button>
+      <button
         className="btn btn-sm btn-light mt-2"
         onClick={() => {
           const updatedCompany = {
@@ -1241,10 +1742,9 @@ const deleteCompany = async (id) => {
       </div>
     </div>
     </div>
-    <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#9e53e8"}}>
+<div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#ce8b39"}}>
       <div className="card-body">
-        
-        <h5 className="card-title">Meeting 1
+        <h5 className="card-title">Meeting Discussion
           <FontAwesomeIcon
   icon={faPenToSquare}
   className="position-absolute"
@@ -1253,17 +1753,16 @@ const deleteCompany = async (id) => {
     cursor: "pointer"
   }}
   onClick={() => {
-  if (editingField === "meet_1") {
+  if (editingField === "meeting_discussion") {
     setEditingField(null);
   } else {
-    setEditingField("meet_1");
-    setFieldValue(selectedCompany.meet_1 || "");
-  }}}
-  />
+    setEditingField("meeting_discussion");
+    setFieldValue(selectedCompany.meeting_discussion || "");
+  }}}/>
         </h5>
         <hr/>
         <p className="text-start mb-0">
-  {editingField === "meet_1" ? (
+  {editingField === "meeting_discussion" ? (
     <>
       <textarea
         className="form-control form-control-sm"
@@ -1272,11 +1771,20 @@ const deleteCompany = async (id) => {
         onChange={(e) => setFieldValue(e.target.value)}
       />
       <button
+  className=" btn btn-sm btn-light mt-2 me-2"
+  onClick={() => {
+    setEditingField(null); 
+    setFieldValue(selectedCompany.quotes); 
+  }}
+>
+  Cancel
+</button>
+      <button
         className="btn btn-sm btn-light mt-2"
         onClick={() => {
           const updatedCompany = {
             ...selectedCompany,
-            meet_1: fieldValue
+            meeting_discussion: fieldValue
           };
 
           setSelectedCompany(updatedCompany);
@@ -1288,9 +1796,10 @@ const deleteCompany = async (id) => {
       </button>
     </>
   ) : (
-    selectedCompany.meet_1 || "No meet held"
+    selectedCompany.meeting_discussion || "NA"
   )}
 </p>
+
       </div>
     </div>
 
@@ -1323,6 +1832,15 @@ const deleteCompany = async (id) => {
         onChange={(e) => setFieldValue(e.target.value)}
       />
       <button
+  className=" btn btn-sm btn-light mt-2 me-2"
+  onClick={() => {
+    setEditingField(null); 
+    setFieldValue(selectedCompany.quotes); 
+  }}
+>
+  Cancel
+</button>
+      <button
         className="btn btn-sm btn-light mt-2"
         onClick={() => {
           const updatedCompany = {
@@ -1339,12 +1857,75 @@ const deleteCompany = async (id) => {
       </button>
     </>
   ) : (
-    selectedCompany.meet_2 || "No meeting held"
+    selectedCompany.meet_2 || "NA"
   )}
 </p>
 
       </div>
-    </div>   
+    </div>
+    <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#9e53e8"}}>
+      <div className="card-body">
+        
+        <h5 className="card-title">Meeting 1
+          <FontAwesomeIcon
+  icon={faPenToSquare}
+  className="position-absolute"
+  style={{
+    right: "10px",
+    cursor: "pointer"
+  }}
+  onClick={() => {
+  if (editingField === "meet_1") {
+    setEditingField(null);
+  } else {
+    setEditingField("meet_1");
+    setFieldValue(selectedCompany.meet_1 || "");
+  }}}
+  />
+        </h5>
+        <hr/>
+        <p className="text-start mb-0">
+  {editingField === "meet_1" ? (
+    <>
+      <textarea
+        className="form-control form-control-sm"
+        rows="3"
+        value={fieldValue}
+        onChange={(e) => setFieldValue(e.target.value)}
+      />
+      <button
+  className=" btn btn-sm btn-light mt-2 me-2"
+  onClick={() => {
+    setEditingField(null); 
+    setFieldValue(selectedCompany.quotes); 
+  }}
+>
+  Cancel
+</button>
+      <button
+        className="btn btn-sm btn-light mt-2"
+        onClick={() => {
+          const updatedCompany = {
+            ...selectedCompany,
+            meet_1: fieldValue
+          };
+
+          setSelectedCompany(updatedCompany);
+          updateCompany(updatedCompany);
+          setEditingField(null);
+        }}
+      >
+        Save
+      </button>
+    </>
+  ) : (
+    selectedCompany.meet_1 || "NA"
+  )}
+</p>
+      </div>
+    </div>
+
+       
     </>
   )}
 
@@ -1352,7 +1933,19 @@ const deleteCompany = async (id) => {
   {showForm && (
     <div className="d-flex justify-content-center">
       <div className="card bg-dark text-light shadow-sm" style={{ width: "75%" }}>
-        <div className="card-body">
+        <div className="card-body position-relative">
+          <button
+    type="button"
+    className="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-2"
+    onClick={() => setShowForm(false)}
+  >
+    <FontAwesomeIcon
+      icon={faXmark}
+      
+
+    />
+  </button>
+
           <h5 className="mb-3">Add Company</h5>
 
           <form>
@@ -1379,6 +1972,21 @@ const deleteCompany = async (id) => {
                   setNewCompany({
                     ...newCompany,
                     domain: e.target.value
+                    })
+                    }
+                />
+              </div>
+
+              <div className="col-md-6">
+                <label className="form-label">Company Website</label>
+                <input
+                  type="url"
+                  className="form-control form-control-md"
+                  placeholder="https://example.com"
+                  onChange={(e) =>
+                  setNewCompany({
+                    ...newCompany,
+                    website: e.target.value
                     })
                     }
                 />
@@ -1426,16 +2034,16 @@ const deleteCompany = async (id) => {
                     }
                 />
               </div>
-              <div className="col-md-6"></div>
+              <div className="col-md-8"></div>
               
-              <div className="d-grid gap-2 col-6 mx-auto mt-4">
-                <button className="btn btn-primary"
+              <div className="d-grid gap-2 col-4 mx-auto mt-4">
+                <button className="btn btn-primary ms-5"
                 onClick={(e) => {
                   e.preventDefault();
                   addCompany(newCompany);
                   }}
                 >
-                  Save Lead
+                  Save Company
                 </button>
               </div>
             </div>

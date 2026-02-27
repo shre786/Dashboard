@@ -13,7 +13,7 @@ from django.db.models import Q
 from .models import Dashboard_sheet
 from .serializers import (
     UserRegistrationSerializer, UserSerializer, CompanySerializer, 
-    CompanyListSerializer, CompanyStatusUpdateSerializer, UpcomingMeetingSerializer
+    CompanyListSerializer, CompanyStatusUpdateSerializer, UpcomingMeetingSerializer, CompanyResponseSerializer
 )
 
 User = get_user_model()
@@ -255,6 +255,7 @@ class CompanyUpdateView(generics.UpdateAPIView):
     queryset = Dashboard_sheet.objects.all()
     permission_classes = [AllowAny]  # Changed to AllowAny for development
     serializer_class = CompanySerializer
+
     
     def update(self, request, *args, **kwargs):
         try:
@@ -288,7 +289,7 @@ class CompanyUpdateView(generics.UpdateAPIView):
         except Exception as e:
             return Response({
                 "status": "error",
-                "message": "An unexpected error occurred. Please try again later.",
+                "message": str(e),
                 "error_code": "INTERNAL_SERVER_ERROR"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -318,6 +319,7 @@ class CompanyStatusUpdateView(APIView):
                 "data": {
                     "id": company.id,
                     "status": company.status
+
                 }
             }, status=status.HTTP_200_OK)
             
@@ -449,3 +451,91 @@ class AddCompanyView(generics.CreateAPIView):
                 "message": str(e),
                 "error_code": "INTERNAL_SERVER_ERROR"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CompanyResponsesView(APIView):
+    permission_classes = [AllowAny]  # change later if needed
+
+    def get(self, request):
+        try:
+            # Only companies that have valid response
+            queryset = Dashboard_sheet.objects.filter(
+                Q(response__isnull=False) &
+                ~Q(response__exact="") &
+                ~Q(response__iexact="na")
+            ).order_by('-date_created')
+
+            serializer = CompanyResponseSerializer(queryset, many=True)
+
+            return Response({
+                "status": "success",
+                "data": {
+                    "responses": serializer.data,
+                    "total": len(serializer.data),
+                    "follow_ups": serializer.data
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": "Failed to fetch responses",
+                "error_code": "INTERNAL_SERVER_ERROR"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+from django.utils.timezone import localtime, now
+from datetime import date
+
+
+class FollowupMeetingsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            today = date.today()
+            current_time = localtime()
+
+            meetings = Dashboard_sheet.objects.filter(
+                meeting_date__isnull=False
+            ).order_by("meeting_date")
+
+            today_meetings = []
+            future_meetings = []
+
+            for m in meetings:
+                meeting_local = localtime(m.meeting_date)
+
+                if meeting_local.date() == today:
+                    today_meetings.append({
+                        "company_id": m.id,
+                        "CompanyName": m.company_name,
+                        "meeting_date": meeting_local,
+                        "status": m.status
+                    })
+
+                elif meeting_local.date() > today:
+                    future_meetings.append({
+                        "company_id": m.id,
+                        "CompanyName": m.company_name,
+                        "meeting_date": meeting_local,
+                        "status": m.status
+                    })
+
+            # Get nearest future meeting
+            nearest_meeting = future_meetings[0] if future_meetings else None
+
+            return Response({
+                "status": "success",
+                "today_count": len(today_meetings),
+                "today_meetings": today_meetings,
+                "future_meetings": future_meetings,
+                "nearest_meeting": nearest_meeting
+            })
+
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=500)

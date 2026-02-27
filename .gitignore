@@ -1,7 +1,14 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 #Environment variables
 env/
+venv/
+__pycache__/
+*.pyc
+*.xlsx
+~$*
+node_modules/# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+
 
 
 # dependencies

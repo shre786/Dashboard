@@ -1,0 +1,69 @@
+ 
+ // old search function
+ <li className="list-group-item active fw-bold text-center" style={{backgroundColor:"#60A5FA"}} >
+  <div className="d-flex justify-content-center align-items-center gap-2 m-1">
+    Company Names
+    {/* Search Icon */}
+    <FontAwesomeIcon
+      icon={faMagnifyingGlass}
+      className="text-light"
+      size="sm"
+      style={{ cursor: "pointer" }}
+      onClick={() => setShowSearch(prev => !prev)}
+    />
+
+  </div>
+
+  {/* Search Box */}
+  {showSearch && (
+  <div className="mt-2 px-2">
+    <nav className="navbar bg-transparent p-0">
+      <form className="w-100" role="search">
+        <div className="input-group input-group-sm">
+          <input
+            className="form-control"
+            type="search"
+            placeholder="Search company..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+
+        </div>
+      </form>
+    </nav>
+  </div>
+)}
+
+</li>
+
+
+list part 
+{visibleCompanies.length === 0 ? (
+  <li className="list-group-item text-center text-muted">
+    No Results Found
+  </li>
+) : (
+  visibleCompanies.map((lead, index) => (
+    <li
+      key={index}
+      className={`list-group-item company-item text-center ${
+        selectedCompany?.CompanyName === lead.CompanyName ? "active" : ""
+      }`}
+      
+      onClick={() => {
+        setSelectedCompany(lead);
+        setShowForm(false);
+      }}
+    >
+      <span className="d-flex justify-content-center align-items-center gap-2">
+        <img
+          src={getFavicon(lead.website, lead.domain)}
+          alt=""
+          style={{ width: "16px", height: "16px" }}
+          onError={(e) => (e.currentTarget.style.display = "none")}
+        />
+        <span>{lead.CompanyName}</span>
+      </span>
+    </li>
+  ))
+)}
