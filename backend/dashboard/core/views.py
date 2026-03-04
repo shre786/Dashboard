@@ -12,7 +12,7 @@ from django.db.models import Q
 
 from .models import Dashboard_sheet
 from .serializers import (
-    UserRegistrationSerializer, UserSerializer, CompanySerializer, 
+    UserRegistrationSerializer, UserSerializer, CompanySerializer, NextWeekMeetingSerializer,
     CompanyListSerializer, CompanyStatusUpdateSerializer, UpcomingMeetingSerializer, CompanyResponseSerializer
 )
 
@@ -371,44 +371,41 @@ class UpcomingMeetingsView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+from django.utils import timezone
+from datetime import timedelta
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+
 class NextWeekMeetingsView(APIView):
-    permission_classes = [AllowAny]  # Changed to AllowAny for development
-    
+    permission_classes = [AllowAny]
+
     def get(self, request):
         try:
-            now = timezone.now()
-            next_week = now + timedelta(days=7)
-            
-            # Get meetings for the next week
+            today = timezone.localdate()
+            after_7_days = today + timedelta(days=7)
+
             queryset = Dashboard_sheet.objects.filter(
-                meeting_date__gte=now,
-                meeting_date__lte=next_week
-            ).order_by('meeting_date')
-            
-            data = []
-            for company in queryset:
-                data.append({
-                    "company_id": company.id,
-                    "CompanyName": company.company_name,
-                    "meetingDate": company.meeting_date,
-                    "status": company.status
-                })
-            
+                meeting_date__date__gt=after_7_days
+            ).order_by('meeting_date')[:5] 
+
+            serializer = NextWeekMeetingSerializer(queryset, many=True)
+
             return Response({
                 "status": "success",
                 "data": {
-                    "updates": data,
-                    "total": len(data)
+                    "updates": serializer.data,
+                    "total": queryset.count()  # will be max 5
                 }
             }, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             return Response({
                 "status": "error",
-                "message": "An unexpected error occurred. Please try again later.",
+                "message": str(e),
                 "error_code": "INTERNAL_SERVER_ERROR"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class AddCompanyView(generics.CreateAPIView):
     queryset = Dashboard_sheet.objects.all()
@@ -498,32 +495,32 @@ class FollowupMeetingsView(APIView):
             current_time = localtime()
 
             meetings = Dashboard_sheet.objects.filter(
-                meeting_date__isnull=False
-            ).order_by("meeting_date")
+                Next_follow_up_date__isnull=False
+            ).order_by("Next_follow_up_date")
 
             today_meetings = []
             future_meetings = []
 
             for m in meetings:
-                meeting_local = localtime(m.meeting_date)
+                followup_local = localtime(m.Next_follow_up_date)
 
-                if meeting_local.date() == today:
+                if followup_local.date() == today:
                     today_meetings.append({
                         "company_id": m.id,
                         "CompanyName": m.company_name,
-                        "meeting_date": meeting_local,
+                        "meeting_date": followup_local,  # keep key same for frontend
                         "status": m.status
                     })
 
-                elif meeting_local.date() > today:
+                elif followup_local.date() > today:
                     future_meetings.append({
                         "company_id": m.id,
                         "CompanyName": m.company_name,
-                        "meeting_date": meeting_local,
+                        "meeting_date": followup_local,
                         "status": m.status
                     })
 
-            # Get nearest future meeting
+            # Get nearest future followup
             nearest_meeting = future_meetings[0] if future_meetings else None
 
             return Response({

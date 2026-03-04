@@ -1,9 +1,11 @@
 import openpyxl
 import re
+from datetime import datetime
 from django.core.management.base import BaseCommand
+from django.utils.timezone import make_aware
 from core.models import Dashboard_sheet
 from django.contrib.auth import get_user_model
-from datetime import datetime
+from dateutil import parser 
 
 User = get_user_model()
 
@@ -13,7 +15,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
 
-        file_path = "Dashboard - Sheet1.xlsx"
+        file_path = "Dashboard.xlsx"
         workbook = openpyxl.load_workbook(file_path)
         sheet = workbook.active
 
@@ -50,6 +52,9 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
+                # --------------------------
+                # Extract POC Details
+                # --------------------------
                 poc_raw = get_value("Point of Contact")
 
                 phone = None
@@ -59,25 +64,59 @@ class Command(BaseCommand):
                 if poc_raw:
                     poc_raw = str(poc_raw)
 
-                    # Extract email
                     email_match = re.search(r'[\w\.-]+@[\w\.-]+', poc_raw)
                     if email_match:
                         email = email_match.group(0)
 
-                    # Extract phone digits
                     digits = re.sub(r'\D', '', poc_raw)
                     if 10 <= len(digits) <= 15:
                         phone = digits
 
-                    # Extract name
                     point_of_contact = poc_raw.split(",")[0].strip()
 
+                # --------------------------
                 # Meeting Date
+                # --------------------------
                 meeting_date = None
                 meeting_date_raw = get_value("Meeting Dates")
-                if isinstance(meeting_date_raw, datetime):
-                    meeting_date = meeting_date_raw
 
+                if meeting_date_raw:
+                    try:
+                        if isinstance(meeting_date_raw, datetime):
+                            parsed = meeting_date_raw
+                        else:
+                            parsed = parser.parse(str(meeting_date_raw))
+
+                        if parsed.tzinfo is None:
+                            meeting_date = make_aware(parsed)
+                        else:
+                            meeting_date = parsed
+                    except Exception:
+                        meeting_date = None
+
+                # --------------------------
+                # Next Follow Up Date
+                # --------------------------
+                next_follow_up_date = None
+                next_follow_up_raw = get_value("Next Followup")
+
+                if next_follow_up_raw:
+                    try:
+                        if isinstance(next_follow_up_raw, datetime):
+                            parsed = next_follow_up_raw
+                        else:
+                            parsed = parser.parse(str(next_follow_up_raw))
+
+                        if parsed.tzinfo is None:
+                            next_follow_up_date = make_aware(parsed)
+                        else:
+                            next_follow_up_date = parsed
+                    except Exception:
+                        next_follow_up_date = None
+
+                # --------------------------
+                # Other Fields
+                # --------------------------
                 quotation_value = get_value("Quotation")
                 meeting_discussion_value = get_value("Meeting Discussion")
 
@@ -99,6 +138,7 @@ class Command(BaseCommand):
                             or ""
                         ),
                         "meeting_date": meeting_date,
+                        "Next_follow_up_date": next_follow_up_date,
                         "meeting_1": get_value("Meeting 1") or "",
                         "meeting_2": get_value("Meeting 2") or "",
                         "meeting_discussion": (

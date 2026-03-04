@@ -2,10 +2,10 @@ import React, {useEffect, useState} from "react";
 import "./Dashboard.css";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass, faPenToSquare, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faMagnifyingGlass, faPenToSquare, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 
 
-const API_URL="http://139.5.189.170:8000/api/";
+const API_URL="http://139.5.189.170:8000/api";
 
 const STAT_CARD_COLORS = {
   division: "#ffffff",        
@@ -29,6 +29,7 @@ export default function Dashboard() {
     const [activeTab, setActiveTab] = useState("Updates");
     const [statusFilter, setStatusFilter] = useState("All");
     const [responses, setResponses] = useState([]);
+    const [extraMeetings, setExtraMeetings] = useState([]);
     const [updates, setUpdates] = useState([]);
     const [newCompany, setNewCompany] = useState({
   CompanyName: "",
@@ -454,6 +455,13 @@ const isToday = (date) => {
   return meetingDate.getTime() === currentDate.getTime();
 };
 
+const addMeeting = () => {
+  setExtraMeetings(prev => [
+    ...prev,
+    { id: prev.length + 3, value: "" }  
+  ]);
+};
+
 useEffect(() => {
 
   const savedReadMap =
@@ -602,7 +610,7 @@ const updateCompany = async (company) => {
 
   meetingDate: company.meetingDate
     ? company.meetingDate.toISOString()
-    : null,   // this is OK (DateTimeField allows null)
+    : null,   
 
   quotes: company.quotes || "",
   planning_to_offer: company.planning_to_offer || "",
@@ -678,6 +686,21 @@ const addCompany = async (newCompany) => {
   }
 };
 
+const fetchScheduledMeetings = async () => {
+  try {
+    const res = await fetch(`${API_URL}/companies/updates`);
+    const data = await res.json();
+
+    console.log("FULL SCHEDULED RESPONSE:", data);
+
+    if (data.status === "success") {
+      setUpdates(data.data.updates);   
+    }
+  } catch (error) {
+    console.error("Failed to fetch scheduled meetings", error);
+  }
+};
+
 const fetchResponses = async () => {
   try {
     const res = await fetch(`${API_URL}/responses`);
@@ -699,9 +722,7 @@ useEffect(() => {
 
 const fetchFollowups = async () => {
   try {
-    const response = await fetch(
-      "http://139.5.189.170:8000/api/companies/followups/"
-    );
+    const response = await fetch(`${API_URL}/companies/followups/`);
     const result = await response.json();
 
     if (result.status === "success") {
@@ -811,7 +832,10 @@ const fetchFollowups = async () => {
   {/* Updates Tab */}
   <li className="nav-item">
     <span
-      onClick={() => setActiveTab("Updates")}
+      onClick={() => {
+  setActiveTab("Updates");
+  fetchScheduledMeetings();
+  }}
       className="nav-link fw-bold px-4 py-2 position-relative"
       style={{
         backgroundColor:activeTab === "Updates" ? "#0d6efd" : "#000000",
@@ -857,51 +881,41 @@ const fetchFollowups = async () => {
 
   {/* Updates Tab  */}
   {activeTab === "Updates" &&
-    (updates.length === 0 ? (
-      <div className="small text-muted">
-        No upcoming updates
-      </div>
-    ) : (
-      updates.map((update) => (
-        <div
-          key={update.id}
-          onClick={() => markAsRead(update.id)}
-          className="d-flex align-items-start gap-2 mb-2 p-2 rounded text-start"
-          style={{
-            background: update.read ? "#2d2d2d" : "#3a3a3a",
-            borderLeft: update.read
-              ? "4px solid #6c757d"
-              : "4px solid #0d6efd",
-            cursor: "pointer",
-            transition: "0.2s ease"
-          }}
-        >
-          <div className="flex-grow-1">
-            <div
-              className="small"
-              style={{
-                color: update.read ? "#bdbdbd" : "#ffffff",
-                fontWeight: update.read ? "normal" : "bold"
-              }}
-            >
-              {update.follow_ups || update.description}
-            </div>
+  (updates.length === 0 ? (
+    <div className="small text-muted">
+      No meetings scheduled
+    </div>
+  ) : (
+    updates.map((update) => (
+      <div
+        key={update.id}
+        className="d-flex align-items-start gap-2 mb-2 p-2 rounded text-start"
+        style={{
+          background: "#3a3a3a",
+          borderLeft: "4px solid #0d6efd"
+        }}
+      >
+        <div className="flex-grow-1">
+          <div className="small text-white fw-bold">
+            {update.follow_ups}
+          </div>
 
-            <div
-              className="text-start fw-semibold"
-              style={{
-                fontSize: "11px",
-                color: getDateColor(update.time)
-              }}
-            >
-              {formatDate(update.time)}
-            </div>
+          <div
+            className="text-start fw-semibold"
+            style={{
+              fontSize: "11px",
+              color: getDateColor(update.time)
+            }}
+          >
+            {formatDate(update.time)}
           </div>
         </div>
-      ))
-    ))}
+      </div>
+    ))
+  ))}
 
 
+{/* Responses Tab  */}
   {activeTab === "Responses" &&
   (responses.length === 0 ? (
     <div className="small text-muted">
@@ -943,61 +957,6 @@ const fetchFollowups = async () => {
 
 {/* End */}
 <hr style={{color:"#ffffff"}}/>
-
-<div className="row mt-2 mb-3 align-items-center">
-  <div className="col-12">
-    <div className="card border-0 shadow-sm bg-dark text-light">
-      <div className="card-body py-2 px-3">
-
-        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
-          Upcoming Meetings
-        </h6>
-
-        {upcomingMeetings.length === 0 && (
-          <div className="small text-muted">
-            No upcoming meetings scheduled
-          </div>
-        )}
-
-        <div className="d-flex gap-2">
-          {upcomingMeetings.slice(0, 3).map((m, idx) => (
-            <div
-  key={idx}
-  className={`flex-fill p-2 rounded d-flex justify-content-between align-items-center upcoming-meeting-card ${
-    isToday(m.date) ? "meeting-today" : ""
-  }`}
-  style={{
-    backgroundColor: "#2d2d2d",
-    borderLeft: "4px solid #fd7e14",
-    minWidth: "0"
-  }}
->
-{/* Company */}
-  <span
-    className="small fw-semibold text-truncate"
-    title={m.company}
-    style={{ maxWidth: "65%" }}
-  >
-    {m.company}
-  </span>
-  {/* Date first */}
-  <span className="small text-info fw-semibold me-2">
-    {m.date.toLocaleString("en-IN", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  
-})}
-
-  </span>  
-</div>
-          ))}
-        </div>
-
-      </div>
-    </div>
-  </div>
-</div>
 
 <div className="row mt-2 mb-3 align-items-center">
   <div className="col-12">
@@ -1067,7 +1026,64 @@ const fetchFollowups = async () => {
       <div className="card-body py-2 px-3">
 
         <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
-          Follow-up Meetings
+          Upcoming Meetings
+        </h6>
+
+        {upcomingMeetings.length === 0 && (
+          <div className="small text-muted">
+            No upcoming meetings scheduled
+          </div>
+        )}
+
+        <div className="d-flex gap-2">
+          {upcomingMeetings.slice(0, 3).map((m, idx) => (
+            <div
+  key={idx}
+  className={`flex-fill p-2 rounded d-flex justify-content-between align-items-center upcoming-meeting-card ${
+    isToday(m.date) ? "meeting-today" : ""
+  }`}
+  style={{
+    backgroundColor: "#2d2d2d",
+    borderLeft: "4px solid #fd7e14",
+    minWidth: "0"
+  }}
+>
+{/* Company */}
+  <span
+    className="small fw-semibold text-truncate"
+    title={m.company}
+    style={{ maxWidth: "65%" }}
+  >
+    {m.company}
+  </span>
+  {/* Date first */}
+  <span className="small text-info fw-semibold me-2">
+    {m.date.toLocaleString("en-IN", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  
+})}
+
+  </span>  
+</div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<div className="row mt-2 mb-3 align-items-center">
+  <div className="col-12">
+    <div className="card border-0 shadow-sm bg-dark text-light">
+      <div className="card-body py-2 px-3">
+
+        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
+          Follow-up
         </h6>
 
         {followups.length === 0 && (
@@ -1495,7 +1511,7 @@ const fetchFollowups = async () => {
       )}
     </p>
 
-    <p className="text-start mt-3">
+    {/* <p className="text-start mt-3">
       <strong>Status : </strong>
       {editMode ? (
         <select
@@ -1516,7 +1532,7 @@ const fetchFollowups = async () => {
       ) : (
         selectedCompany.status
       )}
-    </p>
+    </p> */}
 
   </div>
 
@@ -1741,9 +1757,9 @@ const fetchFollowups = async () => {
       </div>
     </div>
     </div>
-<div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#ce8b39"}}>
+<div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#3963ce"}}>
       <div className="card-body">
-        <h5 className="card-title">Meeting Discussion
+        <h5 className="card-title">Summary of Meetings
           <FontAwesomeIcon
   icon={faPenToSquare}
   className="position-absolute"
@@ -1798,74 +1814,16 @@ const fetchFollowups = async () => {
     selectedCompany.meeting_discussion || "NA"
   )}
 </p>
-
       </div>
     </div>
 
-    <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#ce8b39"}}>
-      <div className="card-body">
-        <h5 className="card-title">Meeting 2
-          <FontAwesomeIcon
-  icon={faPenToSquare}
-  className="position-absolute"
-  style={{
-    right: "10px",
-    cursor: "pointer"
-  }}
-  onClick={() => {
-  if (editingField === "meet_2") {
-    setEditingField(null);
-  } else {
-    setEditingField("meet_2");
-    setFieldValue(selectedCompany.meet_2 || "");
-  }}}/>
-        </h5>
-        <hr/>
-        <p className="text-start mb-0">
-  {editingField === "meet_2" ? (
-    <>
-      <textarea
-        className="form-control form-control-sm"
-        rows="3"
-        value={fieldValue}
-        onChange={(e) => setFieldValue(e.target.value)}
-      />
-      <button
-  className=" btn btn-sm btn-light mt-2 me-2"
-  onClick={() => {
-    setEditingField(null); 
-    setFieldValue(selectedCompany.quotes); 
-  }}
->
-  Cancel
-</button>
-      <button
-        className="btn btn-sm btn-light mt-2"
-        onClick={() => {
-          const updatedCompany = {
-            ...selectedCompany,
-            meet_2: fieldValue
-          };
-
-          setSelectedCompany(updatedCompany);
-          updateCompany(updatedCompany);
-          setEditingField(null);
-        }}
-      >
-        Save
-      </button>
-    </>
-  ) : (
-    selectedCompany.meet_2 || "NA"
-  )}
-</p>
-
-      </div>
+    <div className="d-flex justify-content-end mt-2">
+      <button className="btn btn-primary" type="button" onClick={addMeeting}><FontAwesomeIcon icon={faPlus}></FontAwesomeIcon> Meetings</button>
     </div>
-    <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#9e53e8"}}>
+    <div className="card text-light mt-2 shadow-sm offer1 w-100 position-relative" style={{backgroundColor:"#9e53e8"}}>
       <div className="card-body">
         
-        <h5 className="card-title">Meeting 1
+        <h5 className="card-title">MOM of Meeting 1
           <FontAwesomeIcon
   icon={faPenToSquare}
   className="position-absolute"
@@ -1924,6 +1882,142 @@ const fetchFollowups = async () => {
       </div>
     </div>
 
+    <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#ce8b39"}}>
+      <div className="card-body">
+        <h5 className="card-title">MOM of Meeting 2
+          <FontAwesomeIcon
+  icon={faPenToSquare}
+  className="position-absolute"
+  style={{
+    right: "10px",
+    cursor: "pointer"
+  }}
+  onClick={() => {
+  if (editingField === "meet_2") {
+    setEditingField(null);
+  } else {
+    setEditingField("meet_2");
+    setFieldValue(selectedCompany.meet_2 || "");
+  }}}/>
+        </h5>
+        <hr/>
+        <p className="text-start mb-0">
+  {editingField === "meet_2" ? (
+    <>
+      <textarea
+        className="form-control form-control-sm"
+        rows="3"
+        value={fieldValue}
+        onChange={(e) => setFieldValue(e.target.value)}
+      />
+      <button
+  className=" btn btn-sm btn-light mt-2 me-2"
+  onClick={() => {
+    setEditingField(null); 
+    setFieldValue(selectedCompany.quotes); 
+  }}
+>
+  Cancel
+</button>
+      <button
+        className="btn btn-sm btn-light mt-2"
+        onClick={() => {
+          const updatedCompany = {
+            ...selectedCompany,
+            meet_2: fieldValue
+          };
+
+          setSelectedCompany(updatedCompany);
+          updateCompany(updatedCompany);
+          setEditingField(null);
+        }}
+      >
+        Save
+      </button>
+    </>
+  ) : (
+    selectedCompany.meet_2 || "NA"
+  )}
+</p>
+
+
+      </div>
+    </div>
+
+{extraMeetings.map((meeting, index) => (
+  <div
+    key={meeting.id}
+    className="card text-light shadow-sm mt-3 offer1 w-100 position-relative"
+    style={{ backgroundColor: "#9e53e8" }}
+  >
+    <div className="card-body">
+      <h5 className="card-title">
+  MOM of Meeting {meeting.id}
+
+  <FontAwesomeIcon
+    icon={faPenToSquare}
+    className="position-absolute"
+    style={{ right: "10px", cursor: "pointer" }}
+    onClick={() => {
+      if (editingField === `meet_${meeting.id}`) {
+        setEditingField(null);
+      } else {
+        setEditingField(`meet_${meeting.id}`);
+        setFieldValue(
+          selectedCompany[`meet_${meeting.id}`] || meeting.value || ""
+        );
+      }
+    }}
+  />
+</h5>
+<hr/>
+      {editingField === `meet_${meeting.id}` ? (
+        <>
+          <textarea
+            className="form-control form-control-sm"
+            rows="3"
+            value={fieldValue}
+            onChange={(e) => setFieldValue(e.target.value)}
+          />
+
+          <button
+            className="btn btn-sm btn-light mt-2 me-2"
+            onClick={() => setEditingField(null)}
+          >
+            Cancel
+          </button>
+
+          <button
+            className="btn btn-sm btn-light mt-2"
+            onClick={() => {
+   
+              const updatedMeetings = [...extraMeetings];
+              updatedMeetings[index].value = fieldValue;
+              setExtraMeetings(updatedMeetings);
+
+
+              const updatedCompany = {
+                ...selectedCompany,
+                [`meet_${meeting.id}`]: fieldValue
+              };
+
+              setSelectedCompany(updatedCompany);
+              updateCompany(updatedCompany);
+
+              setEditingField(null);
+            }}
+          >
+            Save
+          </button>
+        </>
+      ) : (
+        <>
+          {meeting.value || "NA"}
+        </>
+      )}
+    </div>
+  </div>
+))}
        
     </>
   )}

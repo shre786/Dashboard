@@ -49,6 +49,8 @@ class Dashboard_sheet(models.Model):
     meeting_discussion = models.TextField(blank=True, null=True, db_column='meet_discuss')
     quotation = models.TextField(blank=True, null=True, db_column='quotes')
     follow_ups = models.TextField(blank=True, null=True)
+    Next_follow_up_date = models.DateTimeField(blank=True, null=True, db_column='next_follow_up_date')
+    last_follow_up_date = models.DateTimeField(blank=True, null=True, db_column='Last Follow up date')
     status = models.CharField(max_length=100, blank=True, null=True, choices=STATUS_CHOICES)
     date_created = models.DateTimeField(auto_now_add=True, db_column='created_at')
     date_updated = models.DateTimeField(auto_now=True, db_column='updated_at')

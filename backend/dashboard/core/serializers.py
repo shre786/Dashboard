@@ -79,6 +79,10 @@ class CompanySerializer(serializers.ModelSerializer):
     allow_blank=True,
     allow_null=True
 )
+    next_follow_up_date = serializers.DateTimeField(
+    source='Next_follow_up_date',
+    required=False,
+    allow_null=True)
     planning_to_offer = serializers.CharField( required=False, allow_blank=True, allow_null=True)
     created_at = serializers.DateTimeField(source='date_created', read_only=True)
     updated_at = serializers.DateTimeField(source='date_updated', read_only=True)
@@ -87,7 +91,7 @@ class CompanySerializer(serializers.ModelSerializer):
         model = Dashboard_sheet
         fields = [
             'id', 'CompanyName', 'domain', 'website', 'poc', 'email', 'phone', 'meeting_discussion',
-            'status', 'meetingAvailability', 'meetingDate', 'quotes', 
+            'status', 'meetingAvailability', 'meetingDate', 'quotes', 'next_follow_up_date',
             'replied', 'meet_1', 'meet_2', 'created_at', 'updated_at','planning_to_offer'
         ]
     
@@ -118,6 +122,7 @@ class CompanyListSerializer(serializers.ModelSerializer):
     website = serializers.URLField(source='company_website', required=False, allow_blank=True, allow_null=True)
     poc = serializers.CharField(source='point_of_contact')
 
+
     meetingAvailability = serializers.CharField(
         source='availability_for_meeting',
         required=False,
@@ -133,6 +138,10 @@ class CompanyListSerializer(serializers.ModelSerializer):
     allow_blank=True,
     allow_null=True
 )
+    next_follow_up_date = serializers.DateTimeField(
+    source='Next_follow_up_date',
+    required=False,
+    allow_null=True)
     replied = serializers.CharField(source='reply', required=False, allow_blank=True, allow_null=True)
     planning_to_offer = serializers.CharField( required=False, allow_blank=True, allow_null=True)
     meetingDate = serializers.SerializerMethodField()
@@ -146,7 +155,7 @@ class CompanyListSerializer(serializers.ModelSerializer):
         model = Dashboard_sheet
         fields = [
             'id', 'CompanyName', 'domain', 'website', 'poc', 'email', 'phone', 'meeting_discussion','replied',
-            'status','meetingAvailability',  'meetingDate', 'quotes', 'meet_1', 'meet_2', 'planning_to_offer' #'response',
+            'status','meetingAvailability',  'meetingDate', 'quotes', 'meet_1', 'meet_2', 'planning_to_offer', "next_follow_up_date" #'response',
         ]
 
 class CompanyStatusUpdateSerializer(serializers.Serializer):
@@ -204,3 +213,13 @@ class CompanyResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dashboard_sheet
         fields = ['id', 'CompanyName', 'response', 'follow_ups']
+
+class NextWeekMeetingSerializer(serializers.ModelSerializer):
+    company_id = serializers.IntegerField(source='id')
+    CompanyName = serializers.CharField(source='company_name')
+    meetingDate = serializers.DateTimeField(source='meeting_date')
+    status = serializers.CharField()
+
+    class Meta:
+        model = Dashboard_sheet
+        fields = ['company_id', 'CompanyName', 'meetingDate', 'status']
