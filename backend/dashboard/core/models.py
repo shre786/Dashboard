@@ -29,6 +29,7 @@ STATUS_CHOICES = (
     ('Awaiting for Meeting', 'Awaiting for Meeting'),
     ('Quotation', 'Quotation'),
     ('Skip', 'Skip'),
+    ('Not Interested', 'Not Interested'),
 )
 
 class Dashboard_sheet(models.Model):
