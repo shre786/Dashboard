@@ -62,7 +62,7 @@ import { faEnvelope, faMagnifyingGlass, faPenToSquare, faPlus, faXmark } from "@
 // </div> */}
 
 
-const API_URL="http://139.5.189.170/api";
+const API_URL="http://139.5.189.170:8000/api";
 
 const STAT_CARD_COLORS = {
   division: "#ffffff",        
