@@ -972,7 +972,7 @@ const fetchFollowups = async () => {
             <StatCard title="Positives" value={positiveLeads} active={selectedStat === "Positives"}
             onClick={() => handleStatClick("Positives")}/>
 
-            <StatCard title={<>Client Not <br /> Interested</>} value={notInterestedLeads} 
+            <StatCard title={<>Client Not Interested</>} value={notInterestedLeads} 
             color={STAT_CARD_COLORS.permission} active={selectedStat === "Client Not Interested"}
             onClick={() => handleStatClick("Client Not Interested")}/>
           </div>
