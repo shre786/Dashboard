@@ -82,12 +82,21 @@ html, body {
   background: #0b5ed7;
 }
 
+.upcoming-meeting-container {
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .upcoming-meeting-card {
   background-color: #2d2d2d;
   border-left: 4px solid #fd7e14;
   transition: all 0.25s ease;
   cursor: pointer;
+  
+
 }
+
 
 .upcoming-meeting-card:hover {
   transform: translateY(-4px) scale(1.02);
@@ -187,7 +196,7 @@ html, body {
 
 /* ------------ */
 .meeting-today {
-  animation: pulse 1.6s infinite;
+  animation: pulse 2.0s infinite;
   border-left-color: #dc3545;
 }
 

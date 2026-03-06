@@ -4,6 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from .models import Dashboard_sheet
 from django.utils.timezone import localtime
 from rest_framework import serializers
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -193,21 +194,19 @@ class UpcomingMeetingSerializer(serializers.ModelSerializer):
             return obj.meeting_date.date() == date.today()
         return False
     
+   
+
     def get_is_nearest(self, obj):
-        request = self.context.get("request")
-
-        # Get all future meetings ordered
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         future_meetings = Dashboard_sheet.objects.filter(
-    meeting_date__gt=today_start
-    ).order_by("meeting_date")
-
+            meeting_date__gte=today_start
+            ).order_by("meeting_date")
+        
         if not future_meetings.exists():
             return False
-
+        
         nearest = future_meetings.first()
-
         return obj.id == nearest.id
-
 class CompanyResponseSerializer(serializers.ModelSerializer):
     CompanyName = serializers.CharField(source='company_name')
     class Meta:

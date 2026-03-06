@@ -100,6 +100,7 @@ class Command(BaseCommand):
                 next_follow_up_date = None
                 next_follow_up_raw = get_value("Next Followup")
 
+                
                 if next_follow_up_raw:
                     try:
                         if isinstance(next_follow_up_raw, datetime):

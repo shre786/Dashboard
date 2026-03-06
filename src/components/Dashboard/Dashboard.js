@@ -1,11 +1,68 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useState, useRef} from "react";
 import "./Dashboard.css";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass, faPenToSquare, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faEnvelope, faMagnifyingGlass, faPenToSquare, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 
 
-const API_URL="http://139.5.189.170:8000/api";
+// {/* <div className="row mt-2 mb-3 align-items-center">
+//   <div className="col-12">
+//     <div className="card border-0 shadow-sm bg-dark text-light">
+//       <div className="card-body py-2 px-3">
+
+//         <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
+//           Upcoming Meetings
+//         </h6>
+
+//         {upcomingMeetings.length === 0 && (
+//           <div className="small text-light">
+//             No upcoming meetings scheduled
+//           </div>
+//         )}
+
+//         <div className="d-flex gap-2">
+//           {upcomingMeetings.slice(0, 3).map((m, idx) => (
+//             <div
+//   key={idx}
+//   className={`flex-fill p-2 rounded d-flex justify-content-between align-items-center upcoming-meeting-card 
+//   ${
+//   m.isToday ? "meeting-today" : ""}
+//    ${m.isNearest ? "meeting-nearest" : ""}`}
+//   style={{
+//     backgroundColor: "#2d2d2d",
+//     borderLeft: "4px solid #fd7e14",
+//     minWidth: "0"
+//   }}
+// >
+// {/* Company */}
+//   <span
+//     className="small fw-semibold text-truncate"
+//     title={m.company}
+//     style={{ maxWidth: "65%" }}
+//   >
+//     {m.company}
+//   </span>
+//   {/* Date first */}
+//   <span className="small text-info fw-semibold me-2">
+//     {m.date.toLocaleString("en-IN", {
+//   day: "2-digit",
+//   month: "short",
+//   year: "numeric",
+  
+// })}
+
+//   </span>  
+// </div>
+//           ))}
+//         </div>
+
+//       </div>
+//     </div>
+//   </div>
+// </div> */}
+
+
+const API_URL="http://127.0.0.1:8000/api";
 
 const STAT_CARD_COLORS = {
   division: "#ffffff",        
@@ -26,11 +83,15 @@ export default function Dashboard() {
     const [editableData, setEditableData] = useState(null);
     const [editingField, setEditingField] = useState(null);
     const [fieldValue, setFieldValue] = useState("");
-    const [activeTab, setActiveTab] = useState("Updates");
+    const [activeTab, setActiveTab] = useState("UpcomingMeetings");
     const [statusFilter, setStatusFilter] = useState("All");
     const [responses, setResponses] = useState([]);
     const [extraMeetings, setExtraMeetings] = useState([]);
     const [updates, setUpdates] = useState([]);
+    const [followups, setFollowups] = useState([]);
+    const [mailCounter, setMailCounter] = useState({});
+    const [sendCount, setSendCount] = useState({});
+    const [upcomingMeetings, setUpcomingMeetings] = useState([]);
     const [newCompany, setNewCompany] = useState({
   CompanyName: "",
   domain: "",
@@ -41,6 +102,7 @@ export default function Dashboard() {
   status: "Under Progress"
 });
 
+const companyListRef = useRef(null);
   
 
 const getFavicon = (website, domain) => {
@@ -52,17 +114,14 @@ const getFavicon = (website, domain) => {
       return null;
     }
     try {
-      // if it already contains scheme, parse it and take hostname
       const u = new URL(host);
       host = u.hostname;
     } catch (_) {
-      // remove any leading protocol manually
       host = host.replace(/^https?:\/\//i, "").split("/")[0];
     }
     return host || null;
   };
 
-  
   const hostFromWeb = sanitizeDomain(website);
   if (hostFromWeb) {
     return `https://www.google.com/s2/favicons?sz=64&domain=${hostFromWeb}`;
@@ -210,7 +269,7 @@ useEffect(() => {
 
 }, []);
 
-
+// Skip Handler
 const handleSkip = async (companyId) => {
   console.log("Skip clicked", companyId);
     try {
@@ -245,6 +304,7 @@ setSelectedCompany(prev =>
     }
   };
 
+  // Unskip Handler
   const handleUnskip = async (companyId) => {
   try {
     const response = await fetch(
@@ -275,6 +335,7 @@ setSelectedCompany(prev =>
   }
 };
 
+// ---------Interested Handler--------------
 const handleMakeInterested = async (companyId) => {
   try {
     const response = await fetch(
@@ -310,6 +371,8 @@ const handleMakeInterested = async (companyId) => {
     console.error("Interested update failed", error);
   }
 };
+
+//--------------Not Interested Handler------------
 
 const handleNotInterested = async (companyId) => {
   try {
@@ -347,7 +410,7 @@ const handleNotInterested = async (companyId) => {
   }
 };
 
-// Helpers
+// --------------Helpers--------------
 const totalLeads = leads.filter(
   l => l.CompanyName || l.Company_Name
 ).length;
@@ -368,51 +431,30 @@ const filteredCompanies = leads.filter(lead =>
   lead.CompanyName?.toLowerCase().includes(searchText.toLowerCase())
 );
 
-// const visibleCompanies = filteredCompanies.filter(lead => {
+// ----------------Helpers Ended-----------------
 
-//   if (selectedStat !== "Total Leads" && lead.status === "Skip") {
-//     return false;
-//   }
-
-//   if (selectedStat === "Positives") {
-//     return lead.status === "Positive";
-//   }
-
-//   if (selectedStat === "Conversation Under Progress") {
-//     return lead.status === "Under Progress";
-//   }
-
-//   if (selectedStat === "Client Not Interested") {
-//     return lead.status === "Not Interested";
-//   }
-
-  
-//   if (statusFilter === "Skip") {
-//     return lead.status === "Skip";
-//   }
-
-//   if (statusFilter !== "All") {
-//     return lead.status === statusFilter;
-//   }
-
-//   // Default: Total Leads (excluding Skip)
-//   return lead.status !== "Skip";
-// });
-
-const visibleCompanies = filteredCompanies.filter(lead => {
-
- 
+// -------------------Filtered based on the Data----------
+const visibleCompanies = filteredCompanies.filter(lead => { 
 
   if (selectedStat === "Client Not Interested") {
+
+  if (statusFilter === "All") {
     return lead.status === "Not Interested";
   }
+
+  if (statusFilter === "Quotation Sent") { 
+    return lead.status === "Not Interested" && lead.quotation === "Sent";
+  }
+
+  return false;
+}
 
   if (selectedStat === "Conversation Under Progress") {
     return lead.status === "Under Progress";
   }
 
   if (selectedStat === "Positives") {
-    return lead.status === "Positive" || lead.status === "Interested";
+    return lead.status === "Positive";
   }
 
   if (selectedStat === "Total Leads") {
@@ -434,6 +476,17 @@ const visibleCompanies = filteredCompanies.filter(lead => {
 
   return true;
 });
+
+// if the current selected company is filtered out, drop the detail view
+useEffect(() => {
+  if (
+    selectedCompany &&
+    !visibleCompanies.some(c => c.id === selectedCompany.id)
+  ) {
+    setSelectedCompany(null);
+  }
+}, [visibleCompanies, selectedCompany]);
+
 
 const isToday = (date) => {
   if (!date) return false;
@@ -522,13 +575,7 @@ const formatDate = (dateValue) => {
     year: "numeric"
 })
     };
-  //  +
-  // " · " +
-  // date.toLocaleTimeString("en-IN", {
-  //   hour: "2-digit",
-  //   minute: "2-digit",
-  //   hour12: true
-  // });
+
 
 
 
@@ -552,40 +599,42 @@ const getDateColor = (dateValue) => {
 };
 
 const unreadUpdates = updates.filter(u => !u.read).length;
-const markAsRead = (id) => {
-  setUpdates(prev => {
-    const updated = prev.map(update =>
-      update.id === id ? { ...update, read: true } : update
-    );
+// const markAsRead = (id) => {
+//   setUpdates(prev => {
+//     const updated = prev.map(update =>
+//       update.id === id ? { ...update, read: true } : update
+//     );
 
-    const readMap = {};
-    updated.forEach(u => {
-      if (u.read) readMap[u.id] = true;
-    });
-    localStorage.setItem("readUpdates", JSON.stringify(readMap));
-    return updated;
-  });
-};
+//     const readMap = {};
+//     updated.forEach(u => {
+//       if (u.read) readMap[u.id] = true;
+//     });
+//     localStorage.setItem("readUpdates", JSON.stringify(readMap));
+//     return updated;
+//   });
+// };
 
 const today = new Date();
 today.setHours(0, 0, 0, 0);
 
-const upcomingMeetings = leads
-  .filter(l => l.meetingDate)
-  .map(l => ({
-    company: l.CompanyName,
-    date: l.meetingDate
-  }))
-  .filter(m => {
-    const meetingDay = new Date(
-      m.date.getFullYear(),
-      m.date.getMonth(),
-      m.date.getDate()
-    );
-    return meetingDay >= today;
-  })
-  .sort((a, b) => a.date - b.date);
+// const upcomingMeetings = leads
+//   .filter(l => l.meetingDate)
+//   .map(l => ({
+//     company: l.CompanyName,
+//     date: l.meetingDate
+//   }))
+//   .filter(m => {
+//     const meetingDay = new Date(
+//       m.date.getFullYear(),
+//       m.date.getMonth(),
+//       m.date.getDate()
+//     );
+//     return meetingDay >= today;
+//   })
+//   .sort((a, b) => a.date - b.date);
 
+
+// Updated Changes function  
 const updateCompany = async (company) => {
   try {
     const payload = {
@@ -608,9 +657,8 @@ const updateCompany = async (company) => {
 
   meetingAvailability: company.meetingAvailability || "",
 
-  meetingDate: company.meetingDate
-    ? company.meetingDate.toISOString()
-    : null,   
+  meetingDate: company.meetingDate || null,
+   
 
   quotes: company.quotes || "",
   planning_to_offer: company.planning_to_offer || "",
@@ -638,6 +686,8 @@ const updateCompany = async (company) => {
         )
       );
       setSelectedCompany(company);
+      fetchUpcomingMeetings();
+      fetchFollowups();
     }
 
   } catch (error) {
@@ -648,6 +698,10 @@ const updateCompany = async (company) => {
 const todaysMeetings = upcomingMeetings.filter(m =>
     isToday(m.date)
   );
+const upcomingFutureMeetings = upcomingMeetings.filter(
+  m => !m.isToday
+);
+
  
 const addCompany = async (newCompany) => {
   try {
@@ -686,21 +740,58 @@ const addCompany = async (newCompany) => {
   }
 };
 
+// ---------------Scheduled Meetings----------------
 const fetchScheduledMeetings = async () => {
   try {
     const res = await fetch(`${API_URL}/companies/updates`);
     const data = await res.json();
 
-    console.log("FULL SCHEDULED RESPONSE:", data);
-
     if (data.status === "success") {
-      setUpdates(data.data.updates);   
+
+      const formatted = data.data.updates.map(m => ({
+        id: m.company_id,
+        CompanyName: m.CompanyName,
+        meetingDate: new Date(m.meetingDate),
+        status: m.status
+      }));
+
+      setUpdates(formatted);
     }
+
   } catch (error) {
     console.error("Failed to fetch scheduled meetings", error);
   }
 };
 
+// --------------Upcoming Meetings----------------
+useEffect(() => {
+  fetchUpcomingMeetings();
+}, []);
+const fetchUpcomingMeetings = async () => {
+  try {
+    const res = await fetch(`${API_URL}/companies/upcoming-meetings`);
+    const data = await res.json();
+
+    console.log("UPCOMING MEETINGS RESPONSE:", data);
+
+    if (data.status === "success") {
+      const formatted = data.data.meetings.map(m => ({
+        company: m.CompanyName,
+        date: new Date(m.meetingDate), 
+        isToday: m.is_today,
+        isNearest: m.is_nearest
+      }));
+
+      setUpcomingMeetings(formatted);
+      console.log("Formatted Upcoming Meetings:", formatted);
+    }
+  } catch (error) {
+    console.error("Failed to fetch upcoming meetings", error);
+  }
+};
+
+
+//-----------Responses---------------
 const fetchResponses = async () => {
   try {
     const res = await fetch(`${API_URL}/responses`);
@@ -714,7 +805,7 @@ const fetchResponses = async () => {
   }
 };
 
-const [followups, setFollowups] = useState([]);
+// ---------Followups Data in the Dashboard---------
 
 useEffect(() => {
   fetchFollowups();
@@ -758,6 +849,60 @@ const fetchFollowups = async () => {
     ? followups[0].date
     : null;
 
+    const handleStatClick = (stat) => {
+    setSelectedStat(stat);
+    setSelectedCompany(null);
+    
+    setTimeout(() => {
+    companyListRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }, 100);
+
+    if (stat === "Total Leads") {
+      setStatusFilter("All");
+    }
+  };
+
+  const handleSendClick = (id) => {
+
+  const count = (sendCount[id] || 0) + 1;
+
+  if (count === 3) {
+    setFollowups(prev => prev.filter(item => item.id !== id));
+    setSendCount(prev => ({ ...prev, [id]: count }));
+    return;
+  }
+
+  const newDate = new Date();
+  newDate.setDate(newDate.getDate() + (count * 5));
+  alert(`Next follow-up for Company will be on ${newDate.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    })}`);
+  setFollowups(prev => {
+    
+    const item = prev.find(c => c.id === id);
+    const rest = prev.filter(c => c.id !== id);
+
+    const updatedItem = {
+      ...item,
+      date: newDate.toISOString()
+    };
+
+    return [...rest, updatedItem]; // moves to bottom
+  });
+
+  setSendCount(prev => ({
+    ...prev,
+    [id]: count
+  }));
+};
+
+  // -------------Main UI----------------------  
+
   return (
      <div className="container-fluid p-1">
         <div style={{ padding: "20px" }}>
@@ -767,7 +912,7 @@ const fetchFollowups = async () => {
     
      <div className="d-flex align-items-center justify-content-between">
 
-  <h2
+  <h3
     className="fw-bold text-light mb-0 d-flex align-items-center"
     title="B2B Data"
     style={{
@@ -785,8 +930,8 @@ const fetchFollowups = async () => {
       width="30"
       height="30"
     />
-    Bussiness Management Software
-  </h2>
+    Business Management Software
+  </h3>
 
   <img
     src="https://portal.vasundharaa.in/static/vgtlogo.png"
@@ -796,8 +941,8 @@ const fetchFollowups = async () => {
   />
 
 </div>
-      <small className="text-light d-block ms-2 mt-2">
-        Bussiness Management Planning
+      <small className="text-light d-block ms-2 mt-0">
+        Business Management Planning
       </small>
 
     </div>
@@ -807,28 +952,107 @@ const fetchFollowups = async () => {
 {/* ------------End header----------------- */}
 
 <hr style={{color:"#ffffff"}}/>
-<div className="row ms-2 mt-3 px-3 align-items-start">
-  <div className="col-md-3 d-flex flex-column gap-3 mt-4">
+
+
+{/* -------------Upcoming meetings in the Dashboard----------- */}
+
+
+
+<div className="row mt-3 px-3 align-items-start">
+  <div className="col-md-2 d-flex flex-column gap-3 mt-4">
     <StatCard title="Total Leads" value={totalLeads}
-    active={selectedStat === "Total Leads"} onClick={() => setSelectedStat("Total Leads")}/>
+    active={selectedStat === "Total Leads"} onClick={() => handleStatClick("Total Leads")}/>
 
     <StatCard title="Conversation Under Progress" value={conversationLeads}
     active={selectedStat === "Conversation Under Progress"}
-    onClick={() => setSelectedStat("Conversation Under Progress")}/>
+    onClick={() => handleStatClick("Conversation Under Progress")}/>
   
   </div>
-<div className="col-md-3 ms-2 d-flex flex-column gap-3 mt-4">
+<div className="col-md-2 d-flex flex-column gap-3 mt-4">
             <StatCard title="Positives" value={positiveLeads} active={selectedStat === "Positives"}
-            onClick={() => setSelectedStat("Positives")}/>
+            onClick={() => handleStatClick("Positives")}/>
 
-            <StatCard title="Client Not Interested" value={notInterestedLeads} 
+            <StatCard title={<>Client Not <br /> Interested</>} value={notInterestedLeads} 
             color={STAT_CARD_COLORS.permission} active={selectedStat === "Client Not Interested"}
-            onClick={() => setSelectedStat("Client Not Interested")}/>
+            onClick={() => handleStatClick("Client Not Interested")}/>
           </div>
 
+  <div className="col-3">
+    <div className="card border-0 shadow-sm bg-dark text-light">
+      <div className="card-body py-2 px-3">
+        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
+          Today's Meetings
+        </h6>
+
+        {todaysMeetings.length === 0 && (
+          <div className="small text-light">
+            No meetings scheduled Today
+           </div>
+        )}
+
+        <div
+  className="upcoming-meeting-container d-flex flex-column gap-2"
+>
+{todaysMeetings.map((m, idx) =>  (
+            <div
+  key={idx}
+  className={`flex-fill p-2 rounded d-flex justify-content-between align-items-center upcoming-meeting-card ${
+    isToday(m.date) ? "meeting-today" : ""
+  }`}
+  style={{
+    backgroundColor: "#2d2d2d",
+    borderLeft: "4px solid #fd7e14",
+    minWidth: "0"
+  }}
+>
+{/* Company */}
+  <span
+    className="small fw-semibold text-truncate"
+    title={m.company}
+    style={{ maxWidth: "65%" }}
+  >
+    {m.company}
+  </span>
+  {/* Date first */}
+  <span className="small text-info fw-semibold me-2">
+    {m.date.toLocaleString("en-IN", {
+  hour: "2-digit",
+  minute:"2-digit",
+  
+})}
+
+  </span>  
+</div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
 {/* Updates */}
-  <div className="ms-5 col-md-5">
-    <ul className="nav nav-tabs border-0 ms-2">
+  <div className="col-md-5">
+    <ul className="nav nav-tabs border-0 ms-0">
+      <li className="nav-item">
+  <span
+    onClick={() => {
+      setActiveTab("UpcomingMeetings");
+    }}
+    className="nav-link fw-bold px-3 py-2 ms-1"
+    style={{
+      backgroundColor: activeTab === "UpcomingMeetings" ? "#0d6efd" : "#000000",
+      color: "#fff",
+      borderRadius: "8px 8px 0 0",
+      border: "none",
+      fontSize: "16px",
+      cursor: "pointer",
+      transition: "0.2s ease"
+    }}
+  >
+    Upcoming Meetings
+  </span>
+</li>
   {/* Updates Tab */}
   <li className="nav-item">
     <span
@@ -844,8 +1068,8 @@ const fetchFollowups = async () => {
         cursor: "pointer",transition: "0.2s ease"
       }}
     >
-      Meeting Scheduled
-      {unreadUpdates > 0 && activeTab === "Updates" && (
+      Meeting Schedule
+      {unreadUpdates > 0 && (
         <span
           className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
           style={{ fontSize: "10px" }}
@@ -873,10 +1097,33 @@ const fetchFollowups = async () => {
       Updates
     </span>
   </li>
+
+  {/* Follow-ups Tab */}
+  <li className="nav-item">
+  <span
+    onClick={() => {
+      setActiveTab("Followup");
+    }}
+    className="nav-link fw-bold px-4 py-2 ms-1"
+    style={{
+      backgroundColor: activeTab === "Followup" ? "#0d6efd" : "#000000",
+      color: "#fff",
+      borderRadius: "8px 8px 0 0",
+      border: "none",
+      fontSize: "16px",
+      cursor: "pointer",
+      transition: "0.2s ease"
+    }}
+  >
+    Followup
+  </span>
+</li>
 </ul>
 
+
+
     <div className="card bg-dark border-0 shadow-sm"
-      style={{ maxHeight: "170px", overflowY: "auto" }}>
+      style={{ maxHeight: "170px", overflowY: "auto",  maxWidth: "620px" }}>
       <div className="card-body p-2">
 
   {/* Updates Tab  */}
@@ -887,31 +1134,33 @@ const fetchFollowups = async () => {
     </div>
   ) : (
     updates.map((update) => (
+  <div
+    key={update.id}
+    className="d-flex align-items-start gap-2 mb-2 p-2 rounded text-start"
+    style={{
+      background: "#3a3a3a",
+      borderLeft: "4px solid #0d6efd"
+    }}
+  >
+    <div className="flex-grow-1">
+
+      <div className="small text-white fw-bold">
+        {update.CompanyName}
+      </div>
+
       <div
-        key={update.id}
-        className="d-flex align-items-start gap-2 mb-2 p-2 rounded text-start"
+        className="text-start fw-semibold"
         style={{
-          background: "#3a3a3a",
-          borderLeft: "4px solid #0d6efd"
+          fontSize: "11px",
+          color: getDateColor(update.meetingDate)
         }}
       >
-        <div className="flex-grow-1">
-          <div className="small text-white fw-bold">
-            {update.follow_ups}
-          </div>
-
-          <div
-            className="text-start fw-semibold"
-            style={{
-              fontSize: "11px",
-              color: getDateColor(update.time)
-            }}
-          >
-            {formatDate(update.time)}
-          </div>
-        </div>
+        {formatDate(update.meetingDate)}
       </div>
-    ))
+
+    </div>
+  </div>
+))
   ))}
 
 
@@ -947,6 +1196,116 @@ const fetchFollowups = async () => {
 })
   ))}
 
+  {/* Follow-up Tab */}
+{activeTab === "Followup" &&
+  (followups.length === 0 ? (
+    <div className="small text-muted">
+      No follow-up meetings scheduled
+    </div>
+  ) : (
+    followups.map((m, idx) => {
+      const meetingDate = new Date(m.date);
+      meetingDate.setHours(0, 0, 0, 0);
+      const isToday = meetingDate.getTime() === today.getTime();
+
+      return (
+        <div
+          key={idx}
+          className="mb-2 p-2 rounded text-start"
+          onClick={() => {
+            const companyObject = leads.find(l => l.id === m.id);
+            if (companyObject) {
+              setSelectedCompany(companyObject);
+              setShowForm(false);
+              {/* window.scrollTo({ top: 500, behavior: "smooth" }); */}
+            }
+          }}
+          style={{
+            background: "#3a3a3a",
+            borderLeft: isToday ? "4px solid #28a745" : "4px solid #fd7e14",
+            cursor: "pointer",
+            transition: "all 0.25s ease"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 4px 12px rgba(253, 126, 20, 0.35)";
+            e.currentTarget.style.backgroundColor = "#454545";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.boxShadow = "none";
+            e.currentTarget.style.backgroundColor = "#3a3a3a";
+          }}
+        >
+          <div className="d-flex justify-content-between align-items-center">
+
+            <div className="fw-bold small text-light">
+              {m.company}
+            </div>
+          <div className="d-flex">
+
+            {/* <FontAwesomeIcon 
+            icon={faEnvelope} 
+            className="me-2"
+            style={{
+        right: "10px",
+        cursor: "pointer",
+        color: "#0d6efd"
+      }}
+       onClick={(e) => {
+    e.stopPropagation(); 
+    handleSendClick(m.id);
+  }}
+             /> */}
+             
+      
+
+            <div className={`small fw-semibold ${isToday ? "text-success" : "text-info"}`}>
+              {isToday
+                ? "Today"
+                : new Date(m.date).toLocaleString("en-IN", {
+                    day: "2-digit",
+                    month: "short"
+                  })}
+            </div>
+</div>
+          </div>
+        </div>
+      );
+    })
+  ))}
+
+{activeTab === "UpcomingMeetings" &&
+  (upcomingFutureMeetings.length === 0 ? (
+    <div className="small text-light">
+      No upcoming meetings scheduled
+    </div>
+  ) : (
+    upcomingFutureMeetings.map((m, idx) => (
+      <div
+        key={idx}
+        className="upcoming-meeting-card d-flex justify-content-between align-items-center mb-2 p-2 rounded ">
+        <span
+          className="small fw-semibold text-light text-truncate"
+          style={{ maxWidth: "65%" }}
+          title={m.company}
+        >
+          {m.company}
+        </span>
+
+        <span className={`small fw-semibold ${m.isToday ? "text-success" : "text-info"}`}>
+          {m.isToday
+            ? "Today"
+            : m.date.toLocaleString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric"
+              })}
+        </span>
+      </div>
+    ))
+  ))}
+
 
 </div>
 
@@ -958,216 +1317,13 @@ const fetchFollowups = async () => {
 {/* End */}
 <hr style={{color:"#ffffff"}}/>
 
-<div className="row mt-2 mb-3 align-items-center">
-  <div className="col-12">
-    <div className="card border-0 shadow-sm bg-dark text-light">
-      <div className="card-body py-2 px-3">
 
-        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
-          Todays Meetings
-        </h6>
-
-        {todaysMeetings.length === 0 && (
-          <div className="small text-muted">
-            No upcoming meetings scheduled
-          </div>
-        )}
-
-        <div
-  className="d-flex flex-column gap-2"
-  style={{
-    maxHeight: "150px",   // adjust height as needed
-    overflowY: "auto",
-    paddingRight: "4px"
-  }}
->
-          {todaysMeetings.map((m, idx) =>  (
-            <div
-  key={idx}
-  className={`flex-fill p-2 rounded d-flex justify-content-between align-items-center upcoming-meeting-card ${
-    isToday(m.date) ? "meeting-today" : ""
-  }`}
-  style={{
-    backgroundColor: "#2d2d2d",
-    borderLeft: "4px solid #fd7e14",
-    minWidth: "0"
-  }}
->
-{/* Company */}
-  <span
-    className="small fw-semibold text-truncate"
-    title={m.company}
-    style={{ maxWidth: "65%" }}
-  >
-    {m.company}
-  </span>
-  {/* Date first */}
-  <span className="small text-info fw-semibold me-2">
-    {m.date.toLocaleString("en-IN", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  
-})}
-
-  </span>  
-</div>
-          ))}
-        </div>
-
-      </div>
-    </div>
-  </div>
-</div>
-
-<div className="row mt-2 mb-3 align-items-center">
-  <div className="col-12">
-    <div className="card border-0 shadow-sm bg-dark text-light">
-      <div className="card-body py-2 px-3">
-
-        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
-          Upcoming Meetings
-        </h6>
-
-        {upcomingMeetings.length === 0 && (
-          <div className="small text-muted">
-            No upcoming meetings scheduled
-          </div>
-        )}
-
-        <div className="d-flex gap-2">
-          {upcomingMeetings.slice(0, 3).map((m, idx) => (
-            <div
-  key={idx}
-  className={`flex-fill p-2 rounded d-flex justify-content-between align-items-center upcoming-meeting-card ${
-    isToday(m.date) ? "meeting-today" : ""
-  }`}
-  style={{
-    backgroundColor: "#2d2d2d",
-    borderLeft: "4px solid #fd7e14",
-    minWidth: "0"
-  }}
->
-{/* Company */}
-  <span
-    className="small fw-semibold text-truncate"
-    title={m.company}
-    style={{ maxWidth: "65%" }}
-  >
-    {m.company}
-  </span>
-  {/* Date first */}
-  <span className="small text-info fw-semibold me-2">
-    {m.date.toLocaleString("en-IN", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  
-})}
-
-  </span>  
-</div>
-          ))}
-        </div>
-
-      </div>
-    </div>
-  </div>
-</div>
-
-
-
-<div className="row mt-2 mb-3 align-items-center">
-  <div className="col-12">
-    <div className="card border-0 shadow-sm bg-dark text-light">
-      <div className="card-body py-2 px-3">
-
-        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
-          Follow-up
-        </h6>
-
-        {followups.length === 0 && (
-          <div className="small text-muted">
-            No follow-up meetings scheduled
-          </div>
-        )}
-
-        <div className="followup-scroll" style={{
-          display: "flex",
-          gap: "8px",
-          overflowX: "auto",
-          overflowY: "hidden",
-          whiteSpace: "nowrap",
-          paddingBottom: "4px"
-        }}>
-          {followups.map((m, idx) => {
-            const meetingDate = new Date(m.date);
-            meetingDate.setHours(0, 0, 0, 0);
-            const isToday = meetingDate.getTime() === today.getTime();
-
-            return (
-              <div
-                key={idx}
-                onClick={() => {
-                  const companyObject = leads.find(l => l.id === m.id);
-                  if (companyObject) {
-                    setSelectedCompany(companyObject);
-                    setShowForm(false);
-                    window.scrollTo({ top: 500, behavior: "smooth" });
-                  }
-                }}
-                style={{
-                  flex: "0 0 calc((100% - 16px) / 3)",
-                  minWidth: "180px",
-                  padding: "8px 12px",
-                  borderRadius: "6px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  backgroundColor: "#2d2d2d",
-                  borderLeft: isToday ? "4px solid #28a745" : "4px solid #fd7e14",
-                  cursor: "pointer",
-                  transition: "all 0.25s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "scale(1.02)";
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(253, 126, 20, 0.35)";
-                  e.currentTarget.style.backgroundColor = "#353535";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                  e.currentTarget.style.boxShadow = "none";
-                  e.currentTarget.style.backgroundColor = "#2d2d2d";
-                }}
-              >
-                <span
-                  className="small fw-semibold text-truncate text-light"
-                  title={m.company}
-                  style={{ maxWidth: "60%" }}
-                >
-                  {m.company}
-                </span>
-                <span className={`small fw-semibold ${isToday ? "text-success" : "text-info"}`} style={{marginLeft: "8px"}}>
-                  {isToday ? "Today" : m.date.toLocaleString("en-IN", {
-                    day: "2-digit",
-                    month: "short"
-                  })}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-      </div>
-    </div>
-  </div>
-</div>
 
 
 {/* Upcoming meeting end */}
 <div className="row mt-2 mb-3 align-items-center">
   <div className="col-3 text-start text-light bg-se">
-    <h3 className="mb-0  fs-3 ms-1">{selectedStat}</h3>
+    <h3 className="mb-0  fs-3 ms-1" ref={companyListRef}>{selectedStat}</h3>
   </div>
 
   <div className="col-5">
@@ -1183,47 +1339,57 @@ const fetchFollowups = async () => {
       </button>
 
       <ul className="dropdown-menu dropdown-menu-start">
-        <li>
-          <button
-            className="dropdown-item"
-            onClick={() => setStatusFilter("All")}
-          >
-            All
-          </button>
-        </li>
-        <li>
-          <button
-            className="dropdown-item"
-            onClick={() => setStatusFilter("Quotation")}
-          >
-            Quotation Send
-          </button>
-        </li>
-        <li>
-          <button
-            className="dropdown-item"
-            onClick={() => setStatusFilter("Interested")}
-          >
-            Interested
-          </button>
-        </li>
-        <li>
-          <button
-            className="dropdown-item"
-            onClick={() => setStatusFilter("Awaiting for Meeting")}
-          >
-            Awaiting for Meeting
-          </button>
-        </li>
-        <li>
-          <button
-            className="dropdown-item"
-            onClick={() => setStatusFilter("Skip")}
-          >
-            Skip
-          </button>
-        </li>
-      </ul>
+
+  <li>
+    <button
+      className="dropdown-item"
+      onClick={() => setStatusFilter("All")}
+    >
+      All
+    </button>
+  </li>
+
+  <li>
+    <button
+      className="dropdown-item"
+      onClick={() => setStatusFilter("Quotation")}
+    >
+      Quotation Sent
+    </button>
+  </li>
+
+  {selectedStat !== "Client Not Interested" && (
+    <>
+      <li>
+        <button
+          className="dropdown-item"
+          onClick={() => setStatusFilter("Interested")}
+        >
+          Interested
+        </button>
+      </li>
+
+      <li>
+        <button
+          className="dropdown-item"
+          onClick={() => setStatusFilter("Awaiting for Meeting")}
+        >
+          Awaiting for Meeting
+        </button>
+      </li>
+
+      <li>
+        <button
+          className="dropdown-item"
+          onClick={() => setStatusFilter("Skip")}
+        >
+          Skip
+        </button>
+      </li>
+    </>
+  )}
+
+</ul>
     </div>
   </div>
 </div>
@@ -1329,7 +1495,7 @@ const fetchFollowups = async () => {
 <div className="col-9 text-light">
 {/* End list  */}
 
-  {selectedCompany && (
+  {selectedCompany && filteredCompanies.some(c => c.id === selectedCompany.id) && (
     <>
     <div className="card bg-dark text-light shadow-sm">
       <div className="card-body">
@@ -1337,9 +1503,14 @@ const fetchFollowups = async () => {
         <h4 className="mb-3 text-start company-web">
   {
     (() => {
-      const companyUrl =
-        selectedCompany.website ||
-        (selectedCompany.domain ? `https://${selectedCompany.domain}` : "#");
+      let companyUrl = selectedCompany.website || selectedCompany.domain || "#";
+      if (
+        companyUrl !== "#" &&
+        !companyUrl.startsWith("http://") &&
+        !companyUrl.startsWith("https://")
+        ) {
+          companyUrl = "https://" + companyUrl;
+          }
       return (
         <a
           href={companyUrl}
@@ -1413,7 +1584,17 @@ const fetchFollowups = async () => {
      setEditMode(false);
    } else {
      setEditMode(true);
-     setEditableData(selectedCompany);
+     {/* setEditableData(selectedCompany); */}
+     setEditableData({
+  ...selectedCompany,
+  meetingDate: selectedCompany.meetingDate
+    ? new Date(selectedCompany.meetingDate)
+        .toISOString()
+        .slice(0,16)
+    : ""
+});
+
+
    }
  }}
    >
@@ -1511,6 +1692,55 @@ const fetchFollowups = async () => {
       )}
     </p>
 
+    {/* <p className="text-start">
+  <strong>Meeting Date : </strong>
+  {editMode ? (
+    <input
+      type="datetime-local"
+      className="form-control form-control-sm mt-1"
+      value={
+        editableData?.meetingDate
+          ? new Date(editableData.meetingDate).toISOString().slice(0,16)
+          : ""
+      }
+      onChange={(e) =>
+  setEditableData({
+    ...editableData,
+    meetingDate: e.target.value ? new Date(e.target.value) : null
+  })
+}
+
+    />
+  ) : (
+    selectedCompany.meetingDate
+      ? new Date(selectedCompany.meetingDate).toLocaleString()
+      : "No meeting scheduled"
+  )}
+</p> */}
+
+<p className="text-start">
+  <strong>Meeting Date : </strong>
+  {editMode ? (
+    <input
+      type="datetime-local"
+      className="form-control form-control-sm mt-1"
+      value={editableData?.meetingDate || ""}
+      onChange={(e) =>
+        setEditableData({
+          ...editableData,
+          meetingDate: e.target.value
+        })
+      }
+    />
+  ) : (
+    selectedCompany.meetingDate
+      ? new Date(selectedCompany.meetingDate).toLocaleString("en-IN")
+      : "No meeting scheduled"
+  )}
+</p>
+
+
+
     {/* <p className="text-start mt-3">
       <strong>Status : </strong>
       {editMode ? (
@@ -1535,6 +1765,7 @@ const fetchFollowups = async () => {
     </p> */}
 
   </div>
+
 
 </div>
 
@@ -1817,9 +2048,9 @@ const fetchFollowups = async () => {
       </div>
     </div>
 
-    <div className="d-flex justify-content-end mt-2">
+    {/* <div className="d-flex justify-content-end mt-2">
       <button className="btn btn-primary" type="button" onClick={addMeeting}><FontAwesomeIcon icon={faPlus}></FontAwesomeIcon> Meetings</button>
-    </div>
+    </div> */}
     <div className="card text-light mt-2 shadow-sm offer1 w-100 position-relative" style={{backgroundColor:"#9e53e8"}}>
       <div className="card-body">
         
@@ -1944,7 +2175,7 @@ const fetchFollowups = async () => {
       </div>
     </div>
 
-{extraMeetings.map((meeting, index) => (
+{/* {extraMeetings.map((meeting, index) => (
   <div
     key={meeting.id}
     className="card text-light shadow-sm mt-3 offer1 w-100 position-relative"
@@ -2017,7 +2248,7 @@ const fetchFollowups = async () => {
       )}
     </div>
   </div>
-))}
+))} */}
        
     </>
   )}
@@ -2150,7 +2381,95 @@ const fetchFollowups = async () => {
 {/* End of Form */}
 
 {/* ----------------------- */}
-        
+{/* Follow UP part in the Dashboard  */}
+{/* <div className="row mt-2 mb-3 align-items-center">
+  <div className="col-12">
+    <div className="card border-0 shadow-sm bg-dark text-light">
+      <div className="card-body py-2 px-3">
+
+        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
+          Follow-up
+        </h6>
+
+        {followups.length === 0 && (
+          <div className="small text-muted">
+            No follow-up meetings scheduled
+          </div>
+        )}
+
+        <div
+  className="followup-scroll"
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)", 
+    gap: "12px",
+    overflowY: "auto", 
+    overflowX: "hidden",                    
+    maxHeight: "150px",                    
+  }}
+>
+          {followups.map((m, idx) => {
+            const meetingDate = new Date(m.date);
+            meetingDate.setHours(0, 0, 0, 0);
+            const isToday = meetingDate.getTime() === today.getTime();
+
+            return (
+              <div
+                key={idx}
+                onClick={() => {
+                  const companyObject = leads.find(l => l.id === m.id);
+                  if (companyObject) {
+                    setSelectedCompany(companyObject);
+                    setShowForm(false);
+                    window.scrollTo({ top: 500, behavior: "smooth" });
+                  }
+                }}
+                style={{
+                  flex: "0 0 calc((100% - 16px) / 3)",
+                  minWidth: "180px",
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  backgroundColor: "#2d2d2d",
+                  borderLeft: isToday ? "4px solid #28a745" : "4px solid #fd7e14",
+                  cursor: "pointer",
+                  transition: "all 0.25s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "scale(1.02)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(253, 126, 20, 0.35)";
+                  e.currentTarget.style.backgroundColor = "#353535";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.backgroundColor = "#2d2d2d";
+                }}
+              >
+                <span
+                  className="small fw-semibold text-truncate text-light"
+                  title={m.company}
+                  style={{ maxWidth: "60%" }}
+                >
+                  {m.company}
+                </span>
+                <span className={`small fw-semibold ${isToday ? "text-success" : "text-info"}`} style={{marginLeft: "8px"}}>
+                  {isToday ? "Today" : m.date.toLocaleString("en-IN", {
+                    day: "2-digit",
+                    month: "short"
+                  })}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>         */}
         </div>
     </div>
 

@@ -9,7 +9,6 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from django.core.paginator import Paginator
 from django.db.models import Q
-
 from .models import Dashboard_sheet
 from .serializers import (
     UserRegistrationSerializer, UserSerializer, CompanySerializer, NextWeekMeetingSerializer,
@@ -353,7 +352,7 @@ class UpcomingMeetingsView(APIView):
             if limit:
                 queryset = queryset[:int(limit)]
             
-            serializer = UpcomingMeetingSerializer(queryset, many=True)
+            serializer = UpcomingMeetingSerializer(queryset, many=True, context={"request": request})
             
             return Response({
                 "status": "success",
@@ -370,13 +369,7 @@ class UpcomingMeetingsView(APIView):
                 "error_code": "INTERNAL_SERVER_ERROR"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 from django.utils import timezone
-from datetime import timedelta
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import AllowAny
 
 class NextWeekMeetingsView(APIView):
     permission_classes = [AllowAny]
@@ -384,11 +377,10 @@ class NextWeekMeetingsView(APIView):
     def get(self, request):
         try:
             today = timezone.localdate()
-            after_7_days = today + timedelta(days=7)
 
             queryset = Dashboard_sheet.objects.filter(
-                meeting_date__date__gt=after_7_days
-            ).order_by('meeting_date')[:5] 
+                meeting_date__date__gt=today
+            ).order_by('meeting_date')[:5]
 
             serializer = NextWeekMeetingSerializer(queryset, many=True)
 
@@ -396,16 +388,15 @@ class NextWeekMeetingsView(APIView):
                 "status": "success",
                 "data": {
                     "updates": serializer.data,
-                    "total": queryset.count()  # will be max 5
+                    "total": queryset.count()
                 }
-            }, status=status.HTTP_200_OK)
+            })
 
         except Exception as e:
             return Response({
                 "status": "error",
-                "message": str(e),
-                "error_code": "INTERNAL_SERVER_ERROR"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                "message": str(e)
+            }, status=500)
 
 class AddCompanyView(generics.CreateAPIView):
     queryset = Dashboard_sheet.objects.all()
@@ -508,7 +499,7 @@ class FollowupMeetingsView(APIView):
                     today_meetings.append({
                         "company_id": m.id,
                         "CompanyName": m.company_name,
-                        "meeting_date": followup_local,  # keep key same for frontend
+                        "meeting_date": followup_local,
                         "status": m.status
                     })
 
@@ -520,7 +511,6 @@ class FollowupMeetingsView(APIView):
                         "status": m.status
                     })
 
-            # Get nearest future followup
             nearest_meeting = future_meetings[0] if future_meetings else None
 
             return Response({
@@ -536,3 +526,21 @@ class FollowupMeetingsView(APIView):
                 "status": "error",
                 "message": str(e)
             }, status=500)
+
+
+    def patch(self, request, pk):
+        try:
+            company = Dashboard_sheet.objects.get(id=pk)
+
+            next_date = request.data.get("next_follow_up_date")
+
+            company.next_follow_up_date = next_date
+            company.save()
+
+            return Response({
+                "status": "success",
+                "message": "Followup date updated"
+            })
+
+        except Dashboard_sheet.DoesNotExist:
+            return Response({"error": "Company not found"}, status=404)
