@@ -95,25 +95,28 @@ class Command(BaseCommand):
                         meeting_date = None
 
                 # --------------------------
-                # Next Follow Up Date
-                # --------------------------
-                next_follow_up_date = None
-                next_follow_up_raw = get_value("Next Followup")
-
-                
-                if next_follow_up_raw:
+    # Follow Up Dates
+# --------------------------
+                def parse_date(value):
+                    if not value:
+                        return None
                     try:
-                        if isinstance(next_follow_up_raw, datetime):
-                            parsed = next_follow_up_raw
+                        if isinstance(value, datetime):
+                            parsed = value
                         else:
-                            parsed = parser.parse(str(next_follow_up_raw))
+                            parsed = parser.parse(str(value))
 
                         if parsed.tzinfo is None:
-                            next_follow_up_date = make_aware(parsed)
-                        else:
-                            next_follow_up_date = parsed
+                            return make_aware(parsed)
+                        return parsed
                     except Exception:
-                        next_follow_up_date = None
+                        return None
+
+
+                follow_up_1 = parse_date(get_value("Follow_up 1"))
+                follow_up_2 = parse_date(get_value("Follow_up 2"))
+                follow_up_3 = parse_date(get_value("Follow_up 3"))
+
 
                 # --------------------------
                 # Other Fields
@@ -139,9 +142,11 @@ class Command(BaseCommand):
                             or ""
                         ),
                         "meeting_date": meeting_date,
-                        "Next_follow_up_date": next_follow_up_date,
                         "meeting_1": get_value("Meeting 1") or "",
                         "meeting_2": get_value("Meeting 2") or "",
+                        "follow_up_1": follow_up_1,
+                        "follow_up_2": follow_up_2,
+                        "follow_up_3": follow_up_3,
                         "meeting_discussion": (
                             str(meeting_discussion_value).strip()
                             if meeting_discussion_value else ""
@@ -157,7 +162,6 @@ class Command(BaseCommand):
                 )
 
                 success += 1
-
             except Exception as e:
                 errors += 1
                 self.stdout.write(

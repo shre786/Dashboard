@@ -1,8 +1,8 @@
 import React, {useEffect, useState, useRef} from "react";
 import "./Dashboard.css";
-
+import axios from "axios";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEnvelope, faMagnifyingGlass, faPenToSquare, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faBars, faEnvelope, faMagnifyingGlass, faPenToSquare, faPlus, faDotCircle, faXmark, faDropletSlash, faBan } from "@fortawesome/free-solid-svg-icons";
 
 
 // {/* <div className="row mt-2 mb-3 align-items-center">
@@ -62,7 +62,7 @@ import { faEnvelope, faMagnifyingGlass, faPenToSquare, faPlus, faXmark } from "@
 // </div> */}
 
 
-const API_URL="http://139.5.189.170/api";
+const API_URL="http://139.5.189.170:8000/api";
 
 const STAT_CARD_COLORS = {
   division: "#ffffff",        
@@ -74,6 +74,8 @@ const STAT_CARD_COLORS = {
 export default function Dashboard() {
 
     const [leads, setLeads] = useState([]);
+    const [time, setTime] = useState(new Date());
+    const [sentStatus, setSentStatus] = useState({});
     const [selectedStat, setSelectedStat] = useState("Total Leads");
     const [showForm, setShowForm] = useState(false);
     const[selectedCompany, setSelectedCompany] = useState(null);
@@ -85,11 +87,14 @@ export default function Dashboard() {
     const [fieldValue, setFieldValue] = useState("");
     const [activeTab, setActiveTab] = useState("UpcomingMeetings");
     const [statusFilter, setStatusFilter] = useState("All");
+    const [companyFilter, setcompanyFilter] = useState("");
     const [responses, setResponses] = useState([]);
     const [extraMeetings, setExtraMeetings] = useState([]);
     const [updates, setUpdates] = useState([]);
     const [followups, setFollowups] = useState([]);
-    const [mailCounter, setMailCounter] = useState({});
+    const [followUps, setFollowUps] = useState([]);
+const [showInput, setShowInput] = useState(false);
+const [newFollowup, setNewFollowup] = useState("");
     const [sendCount, setSendCount] = useState({});
     const [upcomingMeetings, setUpcomingMeetings] = useState([]);
     const [newCompany, setNewCompany] = useState({
@@ -99,11 +104,36 @@ export default function Dashboard() {
   poc: "",
   email: "",
   phone: "",
-  status: "Under Progress"
 });
 
 const companyListRef = useRef(null);
+useEffect(() => { 
+  const timer = setInterval(() => { 
+    setTime(new Date()); }, 1000); 
+  return () => clearInterval(timer); }, []);
   
+useEffect(() => {
+
+  if (selectedCompany?.next_follow_up_date) {
+    setFollowUps([selectedCompany.next_follow_up_date]);
+  } else {
+    setFollowUps([]);
+  }
+
+}, [selectedCompany]);
+// useEffect(() => {
+//   // Whenever user selects another company
+//   setEditMode(false);
+//   setEditingField(null);
+//   setEditableData(null);
+//   setFieldValue("");
+// }, [selectedCompany]);
+useEffect(() => {
+  if(selectedCompany){
+    setEditableData(selectedCompany);
+  }
+}, [selectedCompany]);
+
 
 const getFavicon = (website, domain) => {
   const sanitizeDomain = (d) => {
@@ -263,11 +293,28 @@ useEffect(() => {
         console.log("API did not return success:", result);
       }
     })
+    .then(() => {
+     
+      fetchScheduledMeetings();
+    })
     .catch(error => {
       console.error("Fetch Error:", error);
     });
 
 }, []);
+
+const handleFollowupSend = (companyId, index) => {
+
+  if (editMode) return;   // do nothing in edit mode
+
+  const key = `${companyId}_${index}`;
+
+  setSentStatus(prev => ({
+    ...prev,
+    [key]: true
+  }));
+
+};
 
 // Skip Handler
 const handleSkip = async (companyId) => {
@@ -449,7 +496,7 @@ const visibleCompanies = filteredCompanies.filter(lead => {
   return false;
 }
 
-  if (selectedStat === "Conversation Under Progress") {
+  if (selectedStat === "Conversation In Progress") {
     return lead.status === "Under Progress";
   }
 
@@ -475,7 +522,9 @@ const visibleCompanies = filteredCompanies.filter(lead => {
   }
 
   return true;
-});
+}).sort((a, b) =>
+    a.CompanyName.localeCompare(b.CompanyName, "en", { sensitivity: "base" })
+  );;
 
 // if the current selected company is filtered out, drop the detail view
 useEffect(() => {
@@ -514,6 +563,7 @@ const addMeeting = () => {
     { id: prev.length + 3, value: "" }  
   ]);
 };
+
 
 useEffect(() => {
 
@@ -575,6 +625,35 @@ const formatDate = (dateValue) => {
     year: "numeric"
 })
     };
+
+const addFollowup = () => {
+  if (followUps.length < 3) {
+    setShowInput(true);
+  }
+};
+
+// const saveFollowup = async () => {
+//   if (!newFollowup) return;
+
+//   try {
+//     await axios.patch(
+//       `${API_URL}/companies/followups/${selectedCompany.id}/`,
+//       {
+//         next_follow_up_date: newFollowup
+//       }
+//     );
+
+//     setFollowUps(prev => [...prev, newFollowup]);
+//     setNewFollowup("");
+
+//     // refresh followups from backend
+//     fetchFollowups();
+
+//   } catch (error) {
+//     console.error("Follow-up error:", error);
+//   }
+// };
+
 
 
 
@@ -658,14 +737,13 @@ const updateCompany = async (company) => {
   meetingAvailability: company.meetingAvailability || "",
 
   meetingDate: company.meetingDate || null,
-   
-
   quotes: company.quotes || "",
   planning_to_offer: company.planning_to_offer || "",
   replied: company.replied || "",
   meet_1: company.meet_1 || "",
   meet_2: company.meet_2 || "",
   meeting_discussion: company.meeting_discussion || "",
+  follow_up_date: newFollowup || null
 };
 
     const response = await fetch(`${API_URL}/companies/${company.id}`, {
@@ -705,11 +783,18 @@ const upcomingFutureMeetings = upcomingMeetings.filter(
  
 const addCompany = async (newCompany) => {
   try {
-   
+
     const payload = {
-      ...newCompany
+      ...newCompany,
+      website:
+        newCompany.website && newCompany.website.trim() !== ""
+          ? newCompany.website.startsWith("http")
+            ? newCompany.website
+            : `https://${newCompany.website}`
+          : ""
     };
-    if (!payload.website || payload.website.trim() === "") {
+
+    if (!payload.website) {
       delete payload.website;
     }
 
@@ -740,7 +825,43 @@ const addCompany = async (newCompany) => {
   }
 };
 
+const deleteCompany = async (company) => {
+
+  const confirmDelete = window.confirm(
+    `Delete company "${company.CompanyName}" ?`
+  );
+
+  if (!confirmDelete) return;
+
+  try {
+
+    const response = await fetch(`${API_URL}/companies/delete/${company.id}`, {
+      method: "DELETE"
+    });
+
+    const result = await response.json();
+
+    if (result.status === "success") {
+
+      // remove company from list
+      setLeads(prev =>
+        prev.filter(c => c.id !== company.id)
+      );
+
+      // clear selected company panel
+      setSelectedCompany(null);
+
+      fetchUpcomingMeetings();
+      fetchFollowups();
+    }
+
+  } catch (error) {
+    console.error("Delete error:", error);
+  }
+};
+
 // ---------------Scheduled Meetings----------------
+
 const fetchScheduledMeetings = async () => {
   try {
     const res = await fetch(`${API_URL}/companies/updates`);
@@ -752,7 +873,8 @@ const fetchScheduledMeetings = async () => {
         id: m.company_id,
         CompanyName: m.CompanyName,
         meetingDate: new Date(m.meetingDate),
-        status: m.status
+        status: m.status,
+        read: false
       }));
 
       setUpdates(formatted);
@@ -792,11 +914,18 @@ const fetchUpcomingMeetings = async () => {
 
 
 //-----------Responses---------------
-const fetchResponses = async () => {
+useEffect(() => {
+  if (selectedCompany?.pk) {
+    fetchResponses(selectedCompany.pk);
+  }
+}, [selectedCompany]);
+const fetchResponses = async (pk) => {
   try {
-    const res = await fetch(`${API_URL}/responses`);
+    const res = await fetch(`${API_URL}/responses/${pk}/`);
     const data = await res.json();
-    console.log("FULL RESPONSE:", data); 
+
+    console.log("FULL RESPONSE:", data);
+
     if (data.status === "success") {
       setResponses(data.data.responses);
     }
@@ -804,6 +933,8 @@ const fetchResponses = async () => {
     console.error("Failed to fetch responses", error);
   }
 };
+
+// 
 
 // ---------Followups Data in the Dashboard---------
 
@@ -821,7 +952,7 @@ const fetchFollowups = async () => {
         ...(result.today_meetings || []),
         ...(result.future_meetings || [])
       ];
-
+      console.log("FOLLOWUP API RESULT:", result);
       const formatted = allMeetings.map(item => ({
         id: item.company_id,
         company: item.CompanyName,
@@ -901,19 +1032,39 @@ const fetchFollowups = async () => {
   }));
 };
 
+useEffect(() => {
+
+  if (selectedCompany) {
+
+    const followups = [
+      selectedCompany.follow_up_1,
+      selectedCompany.follow_up_2,
+      selectedCompany.follow_up_3
+    ].filter(Boolean);
+
+    setFollowUps(followups);
+
+  } else {
+    setFollowUps([]);
+  }
+
+}, [selectedCompany]);
+
+
+
   // -------------Main UI----------------------  
 
   return (
      <div className="container-fluid p-1">
-        <div style={{ padding: "20px" }}>
+        <div style={{ padding: "20px 0" }}>
       <div className="container-fluid mb-0">
   <div className="card border-0 text-start" style={{backgroundColor: "#232323"}}>
     <div className="card-body py-2">
     
-     <div className="d-flex align-items-center justify-content-between">
+     <div className="d-flex align-items-start justify-content-between">
 
   <h3
-    className="fw-bold text-light mb-0 d-flex align-items-center"
+    className="fw-bold text-light mb-0 d-flex align-items-center flex-column flex-md-row"
     title="B2B Data"
     style={{
       cursor: "pointer",
@@ -923,14 +1074,16 @@ const fetchFollowups = async () => {
     onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
     onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
   >
-    <img
-      src="/B2B.ico"
-      className="me-2"
-      alt="icon"
-      width="30"
-      height="30"
-    />
-    Business Management Software
+    <div className="d-flex align-items-center">
+      <img
+        src="/B2B.ico"
+        className="me-2"
+        alt="icon"
+        width="30"
+        height="30"
+      />
+      <span className="header-main">Business Management Software</span>
+    </div>
   </h3>
 
   <img
@@ -941,9 +1094,23 @@ const fetchFollowups = async () => {
   />
 
 </div>
-      <small className="text-light d-block ms-2 mt-0">
-        Business Management Planning
-      </small>
+
+{/* Second Row */}
+<div className="d-flex justify-content-between align-items-center mt-1">
+
+  <small className="text-light ms-2">
+    Business Management Planning
+  </small>
+
+  <div className="live-clock">
+    {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+  </div>
+
+</div>
+
+
+
+      
 
     </div>
   </div>
@@ -963,24 +1130,72 @@ const fetchFollowups = async () => {
     <StatCard title="Total Leads" value={totalLeads}
     active={selectedStat === "Total Leads"} onClick={() => handleStatClick("Total Leads")}/>
 
-    <StatCard title="Conversation Under Progress" value={conversationLeads}
-    active={selectedStat === "Conversation Under Progress"}
-    onClick={() => handleStatClick("Conversation Under Progress")}/>
+   
   
   </div>
-<div className="col-md-2 d-flex flex-column gap-3 mt-4">
-            <StatCard title="Positives" value={positiveLeads} active={selectedStat === "Positives"}
-            onClick={() => handleStatClick("Positives")}/>
+  
+<div className="col-md-3 mt-4">
 
-            <StatCard title={<>Client Not <br /> Interested</>} value={notInterestedLeads} 
-            color={STAT_CARD_COLORS.permission} active={selectedStat === "Client Not Interested"}
-            onClick={() => handleStatClick("Client Not Interested")}/>
-          </div>
+  {/* Row for Positives and Conversation */}
+  <div className="row g-3">
 
+    <div className="col-md-6">
+      <StatCard
+        title={<>Positives <br /></>}
+        value={positiveLeads}
+        active={selectedStat === "Positives"}
+        onClick={() => handleStatClick("Positives")}
+      />
+    </div>
+
+    <div className="col-md-6">
+      <StatCard
+        title="Conversation In Progress"
+        value={conversationLeads}
+        active={selectedStat === "Conversation In Progress"}
+        onClick={() => handleStatClick("Conversation In Progress")}
+      />
+    </div>
+
+  </div>
+
+  {/* Second Row */}
+  <div className="row g-3 mt-1">
+
+    <div className="col-md-6">
+      <StatCard
+        title={<>Client Not <br /> Interested</>}
+        value={notInterestedLeads}
+        active={selectedStat === "Client Not Interested"}
+        onClick={() => handleStatClick("Client Not Interested")}
+      />
+    </div>
+
+    <div className="col-md-6">
+      <StatCard
+        title={<>Quotation <br/> Sent</>}
+        value={notInterestedLeads}
+        active={selectedStat === "Quotation Sent"}
+        onClick={() => handleStatClick("Quotation Sent")}
+      />
+    </div>
+
+  </div>
+
+</div>
   <div className="col-3">
     <div className="card border-0 shadow-sm bg-dark text-light">
       <div className="card-body py-2 px-3">
-        <h6 className="fw-bold text-warning mb-2" style={{cursor:"pointer"}}>
+        <h6
+          className="fw-bold text-warning mb-2"
+          style={{
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "inline-block"
+          }}
+        >
           Today's Meetings
         </h6>
 
@@ -1031,15 +1246,15 @@ const fetchFollowups = async () => {
   </div>
 
 
-{/* Updates */}
-  <div className="col-md-5">
+{/* Upcoming meetings */}
+  <div className="col-md-4">
     <ul className="nav nav-tabs border-0 ms-0">
-      <li className="nav-item">
+      <li className="nav-item me-1">
   <span
     onClick={() => {
       setActiveTab("UpcomingMeetings");
     }}
-    className="nav-link fw-bold px-3 py-2 ms-1"
+    className="nav-link fw-bold px-3 py-2 ms-1 position-relative"
     style={{
       backgroundColor: activeTab === "UpcomingMeetings" ? "#0d6efd" : "#000000",
       color: "#fff",
@@ -1051,6 +1266,14 @@ const fetchFollowups = async () => {
     }}
   >
     Upcoming Meetings
+
+    <span
+      className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+      style={{ fontSize: "10px" }}
+    >
+      {upcomingFutureMeetings.length}
+    </span>
+
   </span>
 </li>
   {/* Updates Tab */}
@@ -1069,19 +1292,17 @@ const fetchFollowups = async () => {
       }}
     >
       Meeting Schedule
-      {unreadUpdates > 0 && (
-        <span
-          className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-          style={{ fontSize: "10px" }}
-        >
-          {unreadUpdates}
-        </span>
-      )}
+      <span
+        className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+        style={{ fontSize: "10px" }}
+      >
+        {unreadUpdates}
+      </span>
     </span>
   </li>
 
   {/* Responses Tab */}
-  <li className="nav-item">
+  {/* <li className="nav-item">
     <span
       onClick={() => {
   setActiveTab("Responses");
@@ -1096,7 +1317,7 @@ const fetchFollowups = async () => {
       }}>
       Updates
     </span>
-  </li>
+  </li> */}
 
   {/* Follow-ups Tab */}
   <li className="nav-item">
@@ -1104,7 +1325,7 @@ const fetchFollowups = async () => {
     onClick={() => {
       setActiveTab("Followup");
     }}
-    className="nav-link fw-bold px-4 py-2 ms-1"
+    className="nav-link fw-bold px-4 py-2 ms-1 position-relative"
     style={{
       backgroundColor: activeTab === "Followup" ? "#0d6efd" : "#000000",
       color: "#fff",
@@ -1115,7 +1336,15 @@ const fetchFollowups = async () => {
       transition: "0.2s ease"
     }}
   >
-    Followup
+    Follow - up
+
+    <span
+      className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+      style={{ fontSize: "10px" }}
+    >
+      {followups.length}
+    </span>
+
   </span>
 </li>
 </ul>
@@ -1164,7 +1393,7 @@ const fetchFollowups = async () => {
   ))}
 
 
-{/* Responses Tab  */}
+{/* Responses Tab  
   {activeTab === "Responses" &&
   (responses.length === 0 ? (
     <div className="small text-muted">
@@ -1194,7 +1423,7 @@ const fetchFollowups = async () => {
     </div>
   );
 })
-  ))}
+  ))}*/}
 
   {/* Follow-up Tab */}
 {activeTab === "Followup" &&
@@ -1309,6 +1538,8 @@ const fetchFollowups = async () => {
 
 </div>
 
+
+<></>
     </div>
   </div>
 </div>
@@ -1324,12 +1555,21 @@ const fetchFollowups = async () => {
 <div className="row mt-2 mb-3 align-items-center">
   <div className="col-3 text-start text-light bg-se">
     <h3 className="mb-0  fs-3 ms-1" ref={companyListRef}>{selectedStat}</h3>
+  
   </div>
+
 
   <div className="col-5">
     <div className="row mt-2 mb-3">
   <div className="col-12 d-flex justify-content-start">
     <div className="dropdown">
+      <button
+    className="btn btn-outline-light d-lg-none me-2 "
+    data-bs-toggle="offcanvas"
+    data-bs-target="#companyListCanvas"
+  >
+    <FontAwesomeIcon icon={faBars}  />
+  </button>
       <button
         className="btn btn-outline-light dropdown-toggle"
         type="button"
@@ -1337,7 +1577,7 @@ const fetchFollowups = async () => {
       >
         {statusFilter}
       </button>
-
+      
       <ul className="dropdown-menu dropdown-menu-start">
 
   <li>
@@ -1418,14 +1658,65 @@ const fetchFollowups = async () => {
 
 {/* End List */}
         <div className="row mt-2">
-  <div className="col-3 text-light" >
+
+
+  <div className="col-3 text-light d-none d-lg-block" >
   <ul className="list-group">
    <li
   className="list-group-item active fw-bold position-relative"
   style={{ backgroundColor: "#60A5FA" }}
 >
   <div className="d-flex align-items-center justify-content-center position-relative">
+  <div className="row">
+  <div className="col-12 d-flex justify-content-start">
+    <div className="dropdown">
+      <button
+        className="btn btn-sm text-light dropdown-toggle"
+        data-bs-toggle="dropdown"
+      >
+      <FontAwesomeIcon icon={faBars}/>
+        {companyFilter}
+      </button>
+      
+      <ul className="dropdown-menu dropdown-menu-start">
 
+  <li>
+    <button
+      className="dropdown-item"
+      onClick={() => setcompanyFilter("Sort(A-Z)")}
+    >
+      Sort(A-Z)
+    </button>
+  </li>
+
+  <li>
+    <button
+      className="dropdown-item"
+      onClick={() => setcompanyFilter("Latest Update")}
+    >
+      Latest Updated
+    </button>
+  </li>
+
+  {selectedStat !== "Client Not Interested" && (
+    <>
+      <li>
+        <button
+          className="dropdown-item"
+          onClick={() => setcompanyFilter("Follow-ups")}
+        >
+          Follow-ups
+        </button>
+      </li>
+
+     
+    </>
+  )}
+
+</ul>
+    </div>
+  </div>
+</div>
     {/* Center Area */}
     {!showSearch ? (
       <span className="text-center w-100">Company Names</span>
@@ -1491,8 +1782,48 @@ const fetchFollowups = async () => {
 </ul>
   
 </div>
+<div
+  className="offcanvas offcanvas-start bg-dark text-light"
+  tabIndex="-1"
+  id="companyListCanvas"
+>
+  <div className="offcanvas-header">
+    <h5 className="offcanvas-title">Company List</h5>
+    <button
+      type="button"
+      className="btn-close btn-close-white"
+      data-bs-dismiss="offcanvas"
+    ></button>
+  </div>
 
-<div className="col-9 text-light">
+  <div className="offcanvas-body p-0">
+
+    <ul className="list-group list-group-flush">
+
+      {visibleCompanies.map((lead, index) => (
+        <li
+          key={index}
+          className="list-group-item bg-dark text-light border-secondary"
+          onClick={() => {
+            setSelectedCompany(lead);
+          }}
+        >
+          <div className="d-flex align-items-center gap-2">
+            <img
+              src={getFavicon(lead.website, lead.domain)}
+              style={{ width: "18px" }}
+            />
+            {lead.CompanyName}
+          </div>
+        </li>
+      ))}
+
+    </ul>
+
+  </div>
+</div>
+
+<div className="col-lg-9 col-12 text-light">
 {/* End list  */}
 
   {selectedCompany && filteredCompanies.some(c => c.id === selectedCompany.id) && (
@@ -1541,9 +1872,10 @@ const fetchFollowups = async () => {
   <button
     className="btn btn-sm btn-warning"
     onClick={() => handleNotInterested(selectedCompany.id)}>
-    Not Interested
+    Company Not Interested
   </button>
 )}
+
 
 {selectedCompany.status === "Not Interested" && (
   <button
@@ -1603,7 +1935,14 @@ const fetchFollowups = async () => {
        icon={faPenToSquare}
      />
    </button>
- 
+ <button
+  className="btn btn-md text-danger"
+  style={{ border: "none" }}
+  title="Delete Company"
+  onClick={() => deleteCompany(selectedCompany)}
+>
+  <FontAwesomeIcon icon={faBan} />
+</button>
  </div>
    <hr/>
   <div className="row">
@@ -1669,10 +2008,41 @@ const fetchFollowups = async () => {
         selectedCompany.phone
       )}
     </p>
+{editMode &&<p className="text-start mt-1">
+  <strong>Website : </strong>
+
+  {editMode ? (
+    <input
+      type="text"
+      className="form-control form-control-sm mt-1"
+      value={editableData?.website || ""}
+      placeholder="Enter company website"
+      onChange={(e) =>
+        setEditableData({
+          ...editableData,
+          website: e.target.value
+        })
+      }
+    />
+  ) : (
+    <a
+      href={
+        selectedCompany?.website?.startsWith("http")
+          ? selectedCompany.website
+          : `https://${selectedCompany.website}`
+      }
+      target="_blank"
+      rel="noreferrer"
+    >
+      {selectedCompany?.website}
+    </a>
+  )}
+</p>}
+
 
   </div>
 
-  <div className="col-md-6">
+  <div className="col-md-5">
 
     <p className="text-start">
       <strong>Availability of Meetings : </strong>
@@ -1692,31 +2062,7 @@ const fetchFollowups = async () => {
       )}
     </p>
 
-    {/* <p className="text-start">
-  <strong>Meeting Date : </strong>
-  {editMode ? (
-    <input
-      type="datetime-local"
-      className="form-control form-control-sm mt-1"
-      value={
-        editableData?.meetingDate
-          ? new Date(editableData.meetingDate).toISOString().slice(0,16)
-          : ""
-      }
-      onChange={(e) =>
-  setEditableData({
-    ...editableData,
-    meetingDate: e.target.value ? new Date(e.target.value) : null
-  })
-}
-
-    />
-  ) : (
-    selectedCompany.meetingDate
-      ? new Date(selectedCompany.meetingDate).toLocaleString()
-      : "No meeting scheduled"
-  )}
-</p> */}
+ 
 
 <p className="text-start">
   <strong>Meeting Date : </strong>
@@ -1739,9 +2085,168 @@ const fetchFollowups = async () => {
   )}
 </p>
 
+{/* <p className="text-start d-flex flex-column">
+
+<strong>Follow-up</strong>
+
+{editMode ? (
+  <div className="mt-2 d-flex gap-2">
+    <input
+      type="datetime-local"
+      className="form-control form-control-sm"
+      value={newFollowup}
+      onChange={(e) => setNewFollowup(e.target.value)}
+    />
+
+    <button
+      className="btn btn-success btn-sm"
+      onClick={saveFollowup}
+      disabled={followUps.length >= 3}
+    >
+      Save
+    </button>
+  </div>
+) : (
+  <div className="mt-1">
+    {followUps.length === 0 ? (
+      <span className="small text-muted">No follow-ups added</span>
+    ) : (
+      followUps.map((date, index) => (
+        <div key={index} className="small text-info">
+          {index + 1} Follow-up : {new Date(date).toLocaleString("en-IN")}
+        </div>
+      ))
+    )}
+  </div>
+)}
+
+</p> */}
+
+<p className="text-start d-flex flex-column">
+
+<strong>Follow-up</strong>
+
+{editMode ? (
+
+  <div className="mt-2">
+
+    {/* Add followup input */}
+    <div className="input-group input-group-sm mb-2">
+
+      <input
+        type="datetime-local"
+        className="form-control"
+        value={newFollowup}
+        onChange={(e) => setNewFollowup(e.target.value)}
+      />
+
+      <span
+        className="input-group-text"
+        style={{
+          cursor: followUps.length >= 3 ? "not-allowed" : "pointer",
+          opacity: followUps.length >= 3 ? 0.5 : 1
+        }}
+        onClick={() => {
+          if (newFollowup && followUps.length < 3) {
+            setFollowUps([...followUps, newFollowup]);
+            setNewFollowup("");
+          }
+        }}
+      >
+        <FontAwesomeIcon icon={faPlus} />
+      </span>
+
+    </div>
+
+    {/* Followups visible in edit mode */}
+    {followUps.length === 0 ? (
+      <span className="small text-muted">No follow-ups added</span>
+    ) : (
+      followUps.map((date, index) => {
+
+        const key = `${selectedCompany.id}_${index}`;
+        const isSent = sentStatus[key];
+
+        return (
+          <div
+            key={index}
+            className="small text-info d-flex align-items-center gap-2 mb-1"
+          >
+
+            {index + 1} Follow-up :
+            {new Date(date).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric"
+            })}
+
+            {/* Mail icon only for Followup 2 & 3 */}
+            {index > 0 && (
+              isSent ? (
+                <span className="badge bg-success ms-2">Sent</span>
+              ) : (
+                <span
+                  className="ms-2 text-primary"
+                  style={{ cursor: "pointer" }}
+                  onClick={() =>
+                    handleFollowupSend(selectedCompany.id, index)
+                  }
+                >
+                  <FontAwesomeIcon icon={faEnvelope} />
+                </span>
+              )
+            )}
+
+          </div>
+        );
+      })
+    )}
+
+  </div>
+
+) : (
+
+  <div className="mt-1">
+
+    {followUps.length === 0 ? (
+      <span className="small text-muted">No follow-ups added</span>
+    ) : (
+      followUps.map((date, index) => {
+
+        const key = `${selectedCompany.id}_${index}`;
+        const isSent = sentStatus[key];
+
+        return (
+          <div
+            key={index}
+            className="small text-info d-flex align-items-center gap-2"
+          >
+
+            {index + 1} Follow-up :
+            {new Date(date).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric"
+            })}
+
+            {/* Only show Sent text in normal mode */}
+            {index > 0 && isSent && (
+              <span className="badge bg-success ms-2">Sent</span>
+            )}
+
+          </div>
+        );
+      })
+    )}
+
+  </div>
+
+)}
+
+</p>
 
 
-    {/* <p className="text-start mt-3">
+    <p className="text-start mt-3">
       <strong>Status : </strong>
       {editMode ? (
         <select
@@ -1754,15 +2259,18 @@ const fetchFollowups = async () => {
             })
           }
         >
-          <option>Interested</option>
-          <option>Awaiting for Meeting</option>
-          <option>Quotation</option>
+        <option>Positives</option>
+          <option>Not Interested</option>
+          <option>Quotation Sent</option>
           <option>Skip</option>
+          <option>Conservation In Progress</option>
+          <option>Ignored</option>
+          <option>Will Revert</option>
         </select>
       ) : (
         selectedCompany.status
       )}
-    </p> */}
+    </p>
 
   </div>
 
@@ -1785,11 +2293,26 @@ const fetchFollowups = async () => {
 
     <button
       className="btn btn-primary"
-      onClick={() => {
-        updateCompany(editableData);
-        setSelectedCompany(editableData);
-        setEditMode(false);
-      }}
+      
+      onClick={async () => {
+
+  await updateCompany(editableData);
+
+  if (followUps.length > 0) {
+    await axios.patch(
+      `${API_URL}/companies/followups/${selectedCompany.id}/`,
+      {
+        follow_up_date: followUps[0]
+      }
+    );
+  }
+
+  fetchFollowups();
+
+  setSelectedCompany(editableData);
+  setEditMode(false);
+
+}}
     >
       Save Changes
     </button>
@@ -1797,11 +2320,15 @@ const fetchFollowups = async () => {
 )}
       </div>
     </div>
-  
+  {/* onClick={() => {
+        updateCompany(editableData);
+        setSelectedCompany(editableData);
+        setEditMode(false);
+      }} */}
     <div className="d-flex">
     <div className="card bg-primary text-light shadow-sm mt-3 offer position-relative" style={{width: "25rem"}}>
       <div className="card-body">
-        
+        <div className="mobile-section-header">
         <h5 className="card-title">Quotation
 <FontAwesomeIcon
   icon={faPenToSquare}
@@ -1824,6 +2351,7 @@ const fetchFollowups = async () => {
   />
            
            </h5>
+           </div>
         <hr/>
         <p className="text-start mb-0">
   {editingField === "quotes" ? (
@@ -1864,6 +2392,7 @@ const fetchFollowups = async () => {
   )}
 </p>
 
+      
       </div>
       
     </div>
@@ -1988,6 +2517,71 @@ const fetchFollowups = async () => {
       </div>
     </div>
     </div>
+    <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#3963ce"}}>
+      <div className="card-body">
+        <h5 className="card-title">Clients Initial Response
+          <FontAwesomeIcon
+  icon={faPenToSquare}
+  className="position-absolute"
+  style={{
+    right: "10px",
+    cursor: "pointer"
+  }}
+  onClick={() => {
+  if (editingField === "response") {
+    setEditingField(null);
+  } else {
+    setEditingField("response");
+    setFieldValue(selectedCompany.response || "");
+  }
+}}/>
+        </h5>
+        <hr/>
+        <p className="text-start">
+  {editingField === "response" ? (
+    <>
+    <textarea
+      className="form-control form-control-sm mt-1"
+      value={fieldValue}
+      onChange={(e) => setFieldValue(e.target.value)}
+    />
+    <button
+  className="btn btn-sm btn-light mt-2 me-2"
+  onClick={() => {
+    setEditingField(null);
+    setFieldValue(selectedCompany.response);
+  }}
+>
+  Cancel
+</button>
+
+<button
+  className="btn btn-sm btn-light mt-2"
+  onClick={() => {
+    const updatedCompany = {
+      ...selectedCompany,
+      response: fieldValue
+    };
+
+    setSelectedCompany(updatedCompany);
+    updateCompany(updatedCompany);
+    setEditingField(null);
+  }}
+>
+  Save
+</button>
+</>
+  ) : (
+    selectedCompany?.response || (
+      <span className="text-muted">No responses available</span>
+    )
+  )}
+</p>
+      </div>
+    </div>
+
+
+
 <div className="card text-light shadow-sm mt-3 offer1 w-100 position-relative" style={{backgroundColor:"#3963ce"}}>
       <div className="card-body">
         <h5 className="card-title">Summary of Meetings
@@ -2048,9 +2642,9 @@ const fetchFollowups = async () => {
       </div>
     </div>
 
-    {/* <div className="d-flex justify-content-end mt-2">
+    <div className="d-flex justify-content-end mt-2">
       <button className="btn btn-primary" type="button" onClick={addMeeting}><FontAwesomeIcon icon={faPlus}></FontAwesomeIcon> Meetings</button>
-    </div> */}
+    </div>
     <div className="card text-light mt-2 shadow-sm offer1 w-100 position-relative" style={{backgroundColor:"#9e53e8"}}>
       <div className="card-body">
         
@@ -2175,7 +2769,7 @@ const fetchFollowups = async () => {
       </div>
     </div>
 
-{/* {extraMeetings.map((meeting, index) => (
+{extraMeetings.map((meeting, index) => (
   <div
     key={meeting.id}
     className="card text-light shadow-sm mt-3 offer1 w-100 position-relative"
@@ -2248,7 +2842,7 @@ const fetchFollowups = async () => {
       )}
     </div>
   </div>
-))} */}
+))}
        
     </>
   )}

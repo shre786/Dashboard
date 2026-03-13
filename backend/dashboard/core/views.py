@@ -7,6 +7,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate, get_user_model
 from django.utils import timezone
 from datetime import datetime, timedelta
+from django.utils.dateparse import parse_datetime
+from rest_framework.views import APIView
+from rest_framework import status
+from django.utils.timezone import make_aware
 from django.core.paginator import Paginator
 from django.db.models import Q
 from .models import Dashboard_sheet
@@ -442,16 +446,17 @@ class AddCompanyView(generics.CreateAPIView):
 
 
 class CompanyResponsesView(APIView):
-    permission_classes = [AllowAny]  # change later if needed
+    permission_classes = [AllowAny]
 
-    def get(self, request):
+    def get(self, request, pk):
         try:
-            # Only companies that have valid response
             queryset = Dashboard_sheet.objects.filter(
+                id=pk
+            ).filter(
                 Q(response__isnull=False) &
                 ~Q(response__exact="") &
                 ~Q(response__iexact="na")
-            ).order_by('-date_created')
+            )
 
             serializer = CompanyResponseSerializer(queryset, many=True)
 
@@ -459,8 +464,7 @@ class CompanyResponsesView(APIView):
                 "status": "success",
                 "data": {
                     "responses": serializer.data,
-                    "total": len(serializer.data),
-                    "follow_ups": serializer.data
+                    "total": len(serializer.data)
                 }
             }, status=status.HTTP_200_OK)
 
@@ -468,13 +472,14 @@ class CompanyResponsesView(APIView):
             return Response({
                 "status": "error",
                 "message": "Failed to fetch responses",
-                "error_code": "INTERNAL_SERVER_ERROR"
+                "error": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
 
 
 from django.utils.timezone import localtime, now
 from datetime import date
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import make_aware
 
 
 class FollowupMeetingsView(APIView):
@@ -483,33 +488,50 @@ class FollowupMeetingsView(APIView):
     def get(self, request):
         try:
             today = date.today()
-            current_time = localtime()
 
             meetings = Dashboard_sheet.objects.filter(
-                Next_follow_up_date__isnull=False
-            ).order_by("Next_follow_up_date")
+                Q(follow_up_1__isnull=False) |
+                Q(follow_up_2__isnull=False) |
+                Q(follow_up_3__isnull=False)
+            )
 
             today_meetings = []
             future_meetings = []
 
             for m in meetings:
-                followup_local = localtime(m.Next_follow_up_date)
+
+                followups = [
+                    m.follow_up_1,
+                    m.follow_up_2,
+                    m.follow_up_3
+                ]
+
+                # remove null
+                followups = [f for f in followups if f]
+
+                # keep only today or future
+                followups = [f for f in followups if f.date() >= today]
+
+                if not followups:
+                    continue
+
+                next_followup = min(followups)
+                followup_local = localtime(next_followup)
+
+                meeting_data = {
+                    "company_id": m.id,
+                    "CompanyName": m.company_name,
+                    "meeting_date": followup_local,
+                    "status": m.status
+                }
 
                 if followup_local.date() == today:
-                    today_meetings.append({
-                        "company_id": m.id,
-                        "CompanyName": m.company_name,
-                        "meeting_date": followup_local,
-                        "status": m.status
-                    })
+                    today_meetings.append(meeting_data)
 
                 elif followup_local.date() > today:
-                    future_meetings.append({
-                        "company_id": m.id,
-                        "CompanyName": m.company_name,
-                        "meeting_date": followup_local,
-                        "status": m.status
-                    })
+                    future_meetings.append(meeting_data)
+
+            future_meetings = sorted(future_meetings, key=lambda x: x["meeting_date"])
 
             nearest_meeting = future_meetings[0] if future_meetings else None
 
@@ -528,19 +550,91 @@ class FollowupMeetingsView(APIView):
             }, status=500)
 
 
+
+from datetime import timedelta
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import make_aware
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+class UpdateFollowupView(APIView):
+
     def patch(self, request, pk):
         try:
             company = Dashboard_sheet.objects.get(id=pk)
 
-            next_date = request.data.get("next_follow_up_date")
+            followup_date = request.data.get("follow_up_date")
 
-            company.next_follow_up_date = next_date
+            if not followup_date:
+                return Response({
+                    "status": "error",
+                    "message": "Followup date required"
+                }, status=400)
+
+            parsed_date = parse_datetime(followup_date)
+
+            if parsed_date and parsed_date.tzinfo is None:
+                parsed_date = make_aware(parsed_date)
+
+            # Followup 1
+            if not company.follow_up_1:
+                company.follow_up_1 = parsed_date
+
+                # Auto create followups
+                company.follow_up_2 = parsed_date + timedelta(days=7)
+                company.follow_up_3 = parsed_date + timedelta(days=14)
+
+            # If first already exists but second empty
+            elif not company.follow_up_2:
+                company.follow_up_2 = parsed_date
+                company.follow_up_3 = parsed_date + timedelta(days=7)
+
+            elif not company.follow_up_3:
+                company.follow_up_3 = parsed_date
+
+            else:
+                company.follow_up_3 = parsed_date
+
             company.save()
 
             return Response({
                 "status": "success",
-                "message": "Followup date updated"
+                "message": "Follow-up updated successfully"
             })
 
         except Dashboard_sheet.DoesNotExist:
-            return Response({"error": "Company not found"}, status=404)
+            return Response({
+                "status": "error",
+                "message": "Company not found"
+            }, status=404)
+
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=500)
+
+class CompanyDeleteView(APIView):
+    permission_classes = [AllowAny]
+
+    def delete(self, request, pk):
+        try:
+            company = Dashboard_sheet.objects.get(pk=pk)
+            company.delete()
+
+            return Response({
+                "status": "success",
+                "message": "Company deleted successfully"
+            })
+
+        except Dashboard_sheet.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Company not found"
+            }, status=404)
+
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=500)

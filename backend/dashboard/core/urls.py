@@ -18,10 +18,12 @@ urlpatterns = [
     path('companies/', CompanyListView.as_view(), name='company-list'),
     path('companies/<int:pk>', CompanyUpdateView.as_view(), name='company-update'),
     path("companies/followups/", FollowupMeetingsView.as_view(), name="followups"),
+    path('companies/followups/<int:pk>/', UpdateFollowupView.as_view(), name='update-followup'),
     path('companies/<int:pk>/status', CompanyStatusUpdateView.as_view(), name='company-status-update'),
     path('companies/upcoming-meetings', UpcomingMeetingsView.as_view(), name='upcoming-meetings'),
     path('companies/updates', NextWeekMeetingsView.as_view(), name='next-week-meetings'),
-    path("responses/", CompanyResponsesView.as_view(), name="company-responses"),
+    path("path('companies/responses/<int:pk>/'", CompanyResponsesView.as_view(), name="company-responses"),
+    path("companies/delete/<int:pk>", CompanyDeleteView.as_view()),
     path('addcompany', AddCompanyView.as_view(), name='add-company'),
 
 ]

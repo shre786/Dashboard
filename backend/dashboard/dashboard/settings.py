@@ -109,11 +109,11 @@ DATABASES = {
         'HOST': '139.5.189.170',
         'PORT': '5433',
 
-        # 'NAME': 'dashboard',   
-        # 'USER': 'postgres',
-        # 'PASSWORD': 'shreyash786',
-        # 'HOST': 'localhost',
-        # 'PORT': '5432',
+        'NAME': 'dashboard',   
+        'USER': 'postgres',
+        'PASSWORD': 'shreyash786',
+        'HOST': 'localhost',
+        'PORT': '5432',
 
     }
 }
